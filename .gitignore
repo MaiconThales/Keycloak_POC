@@ -1,0 +1,24 @@
+.idea
+
+/data/**
+
+# 1. Ignora todo o conteúdo do WildFly por padrão
+/wildfly-10.0.0.Final/**
+# -------------------------------------------------------------------
+# Exceção 1: Módulo do PostgreSQL (modules/system/layers/base/org/postgresql/main/)
+# -------------------------------------------------------------------
+# Desbloqueia o caminho de pastas até chegar em 'postgresql'
+!/wildfly-10.0.0.Final/modules/
+!/wildfly-10.0.0.Final/modules/system/
+!/wildfly-10.0.0.Final/modules/system/layers/
+!/wildfly-10.0.0.Final/modules/system/layers/base/
+!/wildfly-10.0.0.Final/modules/system/layers/base/org/
+!/wildfly-10.0.0.Final/modules/system/layers/base/org/postgresql/
+!/wildfly-10.0.0.Final/modules/system/layers/base/org/postgresql/**
+# -------------------------------------------------------------------
+# Exceção 2: Arquivo standalone.xml
+# -------------------------------------------------------------------
+# Desbloqueia o caminho até a pasta configuration
+!/wildfly-10.0.0.Final/standalone/
+!/wildfly-10.0.0.Final/standalone/configuration/
+!/wildfly-10.0.0.Final/standalone/configuration/standalone.xml
