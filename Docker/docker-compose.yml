@@ -1,0 +1,40 @@
+networks:
+  keycloak_net:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres_db
+    volumes:
+      # Aponta para a raiz do projeto (data/postgress)
+      - ../data/postgres:/var/lib/postgresql/data
+      # Aponta para a pasta init-scripts que está junto do docker-compose
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: supersecretpassword
+    ports:
+      - "5432:5432"
+    networks:
+      - keycloak_net
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.0
+    container_name: keycloak_auth
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: adminpassword
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: supersecretpassword
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+    networks:
+      - keycloak_net
+    restart: unless-stopped

@@ -1,0 +1,230 @@
+# PowerShell: & ([scriptblock]::Create((Get-Content -Raw .\deploy.init))) -JavaHome 'C:\Java\jdk8'
+[CmdletBinding()]
+param(
+    [string]$ProjectRoot = (Get-Location).Path,
+    [string]$JavaHome = $env:JAVA_HOME,
+    [ValidateRange(1, 65535)]
+    [int]$KeycloakPort = 8081,
+    [string]$KeycloakUrl,
+    [string]$Realm = 'poc-keycloak',
+    [string]$ClientId = 'poc-keycloak-api',
+    [string]$AdminRealm = 'master',
+    [Alias('EJBPort')]
+    [ValidateRange(1, 65535)]
+    [int]$HttpPort = 8083,
+    [ValidateRange(1, 65535)]
+    [int]$ManagementPort = 9990
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+if (-not $PSBoundParameters.ContainsKey('KeycloakUrl')) {
+    $KeycloakUrl = "http://localhost:$KeycloakPort"
+}
+
+$ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+$pom = Join-Path $ProjectRoot 'POC_Keycloak\pom.xml'
+$wildflyHome = Join-Path $ProjectRoot 'wildfly-10.0.0.Final'
+$standalone = Join-Path $wildflyHome 'bin\standalone.bat'
+$cli = Join-Path $wildflyHome 'bin\jboss-cli.bat'
+$deployments = Join-Path $wildflyHome 'standalone\deployments'
+$war = Join-Path $ProjectRoot 'POC_Keycloak\REST\target\poc-keycloak-api.war'
+$staging = Join-Path $ProjectRoot 'POC_Keycloak\REST\target\deploy-staging'
+
+foreach ($requiredPath in @($pom, $standalone, $cli)) {
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+        throw "Required file not found: $requiredPath. Run from the project root or use -ProjectRoot."
+    }
+}
+if ([string]::IsNullOrWhiteSpace($JavaHome)) {
+    throw 'Set JAVA_HOME to a JDK 8 installation or supply -JavaHome.'
+}
+$javaRelease = Join-Path $JavaHome 'release'
+if (-not (Test-Path -LiteralPath (Join-Path $JavaHome 'bin\javac.exe') -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $javaRelease -PathType Leaf) -or
+    -not (Select-String -LiteralPath $javaRelease -Pattern '^JAVA_VERSION="1\.8\.' -Quiet)) {
+    throw 'WildFly 10 requires JDK 8. Supply its installation directory with -JavaHome.'
+}
+$maven = Get-Command mvn -ErrorAction Stop
+$keycloakUri = [uri]$KeycloakUrl
+if (-not $keycloakUri.IsAbsoluteUri -or
+    $keycloakUri.Scheme -notin @('http', 'https') -or
+    ($keycloakUri.Scheme -eq 'http' -and -not $keycloakUri.IsLoopback) -or
+    $keycloakUri.UserInfo -or $keycloakUri.Query -or $keycloakUri.Fragment) {
+    throw 'Use an absolute Keycloak URL with HTTPS, or HTTP only for localhost, without embedded credentials, query or fragment.'
+}
+foreach ($value in @($Realm, $ClientId, $AdminRealm)) {
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        throw 'Realm, ClientId and AdminRealm must not be empty.'
+    }
+}
+$KeycloakUrl = $KeycloakUrl.TrimEnd('/')
+$realmPath = [uri]::EscapeDataString($Realm)
+$adminRealmPath = [uri]::EscapeDataString($AdminRealm)
+$issuer = "$KeycloakUrl/realms/$realmPath"
+
+$savedEnvironment = @{}
+foreach ($name in @('JAVA_HOME', 'JBOSS_HOME', 'NOPAUSE', 'KEYCLOAK_CLIENT_SECRET')) {
+    $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
+$credential = $null
+$tokenBody = $null
+$token = $null
+$headers = $null
+$clientSecret = $null
+
+function Get-ProjectWildFlyProcess {
+    $homePattern = [regex]::Escape($wildflyHome)
+    Get-CimInstance Win32_Process -Filter "Name = 'java.exe' OR Name = 'javaw.exe'" |
+        Where-Object {
+            $_.CommandLine -and
+            $_.CommandLine -match '(?i)(?:^|\s)org\.jboss\.as\.standalone(?:\s|$)' -and
+            $_.CommandLine -match "(?i)$homePattern(?:[\\/]|\x22|\s|$)"
+        }
+}
+
+try {
+    $env:JAVA_HOME = $JavaHome
+    $env:JBOSS_HOME = $wildflyHome
+    $env:NOPAUSE = 'true'
+    # Keep even a previously configured runtime secret out of the Maven process.
+    if (Test-Path Env:\KEYCLOAK_CLIENT_SECRET) {
+        Remove-Item Env:\KEYCLOAK_CLIENT_SECRET
+    }
+
+    Write-Host 'Building the WAR (including tests)...'
+    & $maven -f $pom clean package "-Dwildfly.deployments.dir=$staging"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Maven failed with exit code $LASTEXITCODE. Deployment was not performed."
+    }
+    if (-not (Test-Path -LiteralPath $war -PathType Leaf)) {
+        throw "Maven did not produce the expected WAR: $war"
+    }
+
+    $credential = Get-Credential -Message 'Keycloak administrator with permission to view the application client secret'
+    if ($null -eq $credential) {
+        throw 'Keycloak authentication was cancelled.'
+    }
+    $tokenBody = @{
+        grant_type = 'password'
+        client_id = 'admin-cli'
+        username = $credential.UserName
+        password = $credential.GetNetworkCredential().Password
+    }
+    Write-Host 'Retrieving the client secret from Keycloak...'
+    $token = Invoke-RestMethod -Method Post `
+        -Uri "$KeycloakUrl/realms/$adminRealmPath/protocol/openid-connect/token" `
+        -ContentType 'application/x-www-form-urlencoded' -Body $tokenBody `
+        -TimeoutSec 15 -MaximumRedirection 0
+    $tokenBody.Clear()
+    $credential.Password.Dispose()
+    $credential = $null
+    if (-not $token.PSObject.Properties['access_token'] -or
+        [string]::IsNullOrWhiteSpace($token.access_token)) {
+        throw 'Keycloak did not return an administrator access token.'
+    }
+    $headers = @{ Authorization = "Bearer $($token.access_token)" }
+    $adminApi = "$KeycloakUrl/admin/realms/$realmPath"
+    $encodedClientId = [uri]::EscapeDataString($ClientId)
+    $clients = Invoke-RestMethod -Method Get `
+        -Uri "$adminApi/clients?clientId=$encodedClientId" -Headers $headers `
+        -TimeoutSec 15 -MaximumRedirection 0
+    $matchingClients = @($clients | Where-Object { $_.clientId -ceq $ClientId })
+    if ($matchingClients.Count -ne 1) {
+        throw "Expected exactly one client '$ClientId' in realm '$Realm'; found $($matchingClients.Count)."
+    }
+    $client = $matchingClients[0]
+    if ($client.publicClient -or -not $client.directAccessGrantsEnabled -or -not $client.enabled) {
+        throw 'The application client must be enabled, confidential (Client authentication ON) and have Direct access grants enabled.'
+    }
+    $clientUuid = [uri]::EscapeDataString($client.id)
+    $clientSecret = Invoke-RestMethod -Method Get `
+        -Uri "$adminApi/clients/$clientUuid/client-secret" -Headers $headers `
+        -TimeoutSec 15 -MaximumRedirection 0
+    if (-not $clientSecret.PSObject.Properties['value'] -or
+        [string]::IsNullOrWhiteSpace($clientSecret.value)) {
+        throw 'Keycloak did not return a client secret. Check the administrator permissions and client configuration.'
+    }
+    $env:KEYCLOAK_CLIENT_SECRET = $clientSecret.value
+    $headers.Clear()
+    $token = $null
+    $clientSecret = $null
+
+    $serverProcesses = @(Get-ProjectWildFlyProcess)
+    $serverIds = @($serverProcesses | Select-Object -ExpandProperty ProcessId)
+    $managementListeners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop |
+        Where-Object { $_.LocalPort -eq $ManagementPort })
+    foreach ($listener in $managementListeners) {
+        if ($listener.OwningProcess -notin $serverIds) {
+            throw "Management port $ManagementPort is owned by another process (PID $($listener.OwningProcess)). It will not be stopped."
+        }
+    }
+    if ($serverProcesses.Count -gt 0) {
+        Write-Host "Stopping this project's WildFly (PID: $($serverIds -join ', '))..."
+        if ($managementListeners.Count -gt 0) {
+            & $cli --connect "--controller=127.0.0.1:$ManagementPort" --timeout=10000 '--command=:shutdown'
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning 'Graceful shutdown failed. Only the identified project server processes will be stopped.'
+            }
+        }
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        do {
+            $remaining = @(Get-ProjectWildFlyProcess)
+            if ($remaining.Count -eq 0) { break }
+            Start-Sleep -Seconds 1
+        } while ([DateTime]::UtcNow -lt $deadline)
+        foreach ($serverProcess in $remaining) {
+            Write-Warning "Forcing shutdown of this project's WildFly, PID $($serverProcess.ProcessId)."
+            $process = Get-Process -Id $serverProcess.ProcessId -ErrorAction Stop
+            Stop-Process -Id $serverProcess.ProcessId -Force -ErrorAction Stop
+            if (-not $process.WaitForExit(15000)) {
+                throw "WildFly PID $($serverProcess.ProcessId) did not stop."
+            }
+        }
+        if (@(Get-ProjectWildFlyProcess).Count -gt 0) {
+            throw 'WildFly is still running. The existing deployment has not been removed.'
+        }
+    }
+    foreach ($listener in @(Get-NetTCPConnection -State Listen -ErrorAction Stop |
+        Where-Object { $_.LocalPort -in @($HttpPort, $ManagementPort) })) {
+        throw "Port $($listener.LocalPort) is still occupied by PID $($listener.OwningProcess). Deployment was not replaced."
+    }
+
+    New-Item -ItemType Directory -Path $deployments -Force | Out-Null
+    # Remove only this application's old WAR and scanner state after the server stops.
+    foreach ($suffix in @('', '.deployed', '.dodeploy', '.failed', '.isdeploying',
+        '.isundeploying', '.undeployed', '.pending', '.skipdeploy')) {
+        $oldDeployment = Join-Path $deployments "poc-keycloak-api.war$suffix"
+        if (Test-Path -LiteralPath $oldDeployment -PathType Leaf) {
+            Remove-Item -LiteralPath $oldDeployment -ErrorAction Stop
+        }
+    }
+    Copy-Item -LiteralPath $war -Destination (Join-Path $deployments 'poc-keycloak-api.war') -Force
+    New-Item -ItemType File -Path (Join-Path $deployments 'poc-keycloak-api.war.dodeploy') -Force | Out-Null
+
+    Write-Host 'Starting WildFly in the foreground. Wait for its successful deployment message.'
+    Write-Host "Application: http://localhost:$HttpPort/ | API: http://localhost:$HttpPort/api/v1"
+    Write-Host 'Java debugger: localhost:8787 (WildFly debug mode)'
+    & $standalone --debug "-Dkeycloak.issuer=$issuer" "-Dkeycloak.client-id=$ClientId" `
+        "-Djboss.http.port=$HttpPort" "-Djboss.management.http.port=$ManagementPort"
+    if ($LASTEXITCODE -ne 0) {
+        throw "WildFly exited with code $LASTEXITCODE. See its console output and standalone\log\server.log."
+    }
+}
+finally {
+    if ($null -ne $tokenBody) { $tokenBody.Clear() }
+    if ($null -ne $headers) { $headers.Clear() }
+    if ($null -ne $credential) { $credential.Password.Dispose() }
+    $credential = $null
+    $token = $null
+    $clientSecret = $null
+    foreach ($name in $savedEnvironment.Keys) {
+        if ($null -eq $savedEnvironment[$name]) {
+            if (Test-Path "Env:\$name") { Remove-Item "Env:\$name" }
+        }
+        else {
+            [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name], 'Process')
+        }
+    }
+}
