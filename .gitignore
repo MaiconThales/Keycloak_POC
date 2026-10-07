@@ -1,6 +1,7 @@
 .idea
 
-/data/**
+/data/*
+!/data/.gitkeep
 
 # 1. Ignora todo o conteúdo do WildFly por padrão
 /wildfly-10.0.0.Final/**
