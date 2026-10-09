@@ -37,9 +37,11 @@ If WildFly is running, its deployment scanner may deploy the copied WAR
 automatically. WildFly 10 runtime requires Java 8. Provide
 `KEYCLOAK_CLIENT_SECRET` in the protected environment that starts WildFly; the
 Maven build does not consume or package it. The SPA is served from `/` and the
-API from `/api/v1` on the same origin. `GET /api/v1/products` is public;
-`POST /api/v1/products` requires a valid Keycloak bearer token with the `admin`
-role, enforced by both the JWT filter and the EJB `@RolesAllowed`.
+API from `/api/v1` on the same origin. `GET /api/v1/products` requires a valid
+Keycloak bearer token with `Admin-Read`, `Sub-Admin-Read`, or `User-Read`.
+Product writes and all `/api/v1/users` endpoints require their matching
+granular administrative permission, enforced by both the JWT filter and EJB
+`@RolesAllowed`.
 
 ## Frontend styling
 
@@ -82,6 +84,15 @@ allowed to retrieve client secrets. Administrator authentication uses
 The application client must be enabled, confidential, and allow Direct access
 grants. Administrator accounts requiring interactive MFA cannot use this
 password-grant flow.
+
+User administration uses the `poc-keycloak-realm` confidential
+service-account client. Enable its client-credentials grant and grant its
+service account the `realm-management` client roles `query-users`, `view-users`,
+and `manage-users` in `poc-keycloak`; do not grant it the application's `admin`
+realm role. The launcher sets `KEYCLOAK_ADMIN_CLIENT_ID` to
+`poc-keycloak-realm` and reuses the retrieved application client secret as
+`KEYCLOAK_ADMIN_CLIENT_SECRET`, providing both secrets to WildFly only at
+runtime and keeping them out of Maven.
 
 After retrieving the secret and stopping the old server, the script removes
 only `poc-keycloak-api.war` and its scanner markers from the deployment

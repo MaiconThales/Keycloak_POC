@@ -1,0 +1,26 @@
+<aside class="col-12 col-lg-3 mb-4 mb-lg-0 sidebar-shell"
+       ng-class="{'sidebar-open': sidebarOpen}" ng-if="isAuthenticated()"
+       aria-label="Navegação lateral">
+    <nav id="main-navigation" class="card border-0 shadow-sm sidebar-navigation"
+         aria-label="Menu principal">
+        <div class="card-body">
+            <h2 class="h6 text-uppercase text-body-secondary mb-3">Menu</h2>
+            <ul class="nav nav-pills flex-column gap-2">
+                <li class="nav-item" ng-if="canSeeProducts()">
+                    <a class="nav-link" href="#!/products"
+                       ng-class="{'active': currentView === 'products'}"
+                       ng-attr-aria-current="{{currentView === 'products' ? 'page' : undefined}}">
+                        Produtos
+                    </a>
+                </li>
+                <li class="nav-item" ng-if="canSeeUsers()">
+                    <a class="nav-link" href="#!/users"
+                       ng-class="{'active': currentView === 'users'}"
+                       ng-attr-aria-current="{{currentView === 'users' ? 'page' : undefined}}">
+                        Usuários
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+</aside>

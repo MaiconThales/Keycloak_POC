@@ -8,18 +8,18 @@ A validação de segurança deve ser aplicada em profundidade: interceptores no 
 | Recurso / Rota REST | Operação HTTP | Roles Keycloak Permitidas | Grupo Equivalente | Contexto de Negócio |
 | :--- | :--- | :--- | :--- | :--- |
 | `/auth/login` | `POST` | *Público* | Qualquer um | Autenticação inicial e emissão do JWT. |
-| `/products` | `GET` | `Admin-Read`, `Sud-Admin-Read`, `User-Read` | Admin, Sub-Admin, User | Listagem geral de produtos (agora protegida). |
-| `/products` | `POST` | `Admin-Write`, `Sud-Admin-Write` | Admin, Sub-Admin | Criação de novos produtos no catálogo. |
-| `/products/{id}` | `PUT` | `Admin-Update`, `Sud-Admin-Update` | Admin, Sub-Admin | Alteração de dados de um produto existente. |
-| `/products/{id}` | `DELETE` | `Admin-Delete`, `Sud-Admin-Delete` | Admin, Sub-Admin | Exclusão física. |
+| `/products` | `GET` | `Admin-Read`, `Sub-Admin-Read`, `User-Read` | Admin, Sub-Admin, User | Listagem geral de produtos (agora protegida). |
+| `/products` | `POST` | `Admin-Write`, `Sub-Admin-Write` | Admin, Sub-Admin | Criação de novos produtos no catálogo. |
+| `/products/{id}` | `PUT` | `Admin-Update`, `Sub-Admin-Update` | Admin, Sub-Admin | Alteração de dados de um produto existente. |
+| `/products/{id}` | `DELETE` | `Admin-Delete`, `Sub-Admin-Delete` | Admin, Sub-Admin | Exclusão física. |
 | `/users` | `GET` | `Admin-Read` | Admin | Listagem de usuários integrados. |
 | `/users` | `POST` | `Admin-Write` | Admin | Provisionamento/registro de novos usuários. |
 | `/users/{id}` | `PUT` | `Admin-Update` | Admin | Atualização de metadados de usuários. |
 | `/users/{id}` | `DELETE` | `Admin-Delete` | Admin | Remoção de usuários. |
-| `/reviews` | `GET` | `Admin-Read`, `Sud-Admin-Read`, `User-Read` | Admin, Sub-Admin, User | Visualização de comentários de produtos. |
-| `/reviews` | `POST` | `Admin-Write`, `Sud-Admin-Write`, `User-Write` | Admin, Sub-Admin, User | Inserção de um comentário sobre um produto. |
-| `/reviews/{id}` | `PUT` | `Admin-Update`, `Sud-Admin-Update`, `User-Update` | Admin, Sub-Admin, User | Edição de um comentário próprio. |
-| `/reviews/{id}` | `DELETE` | `Admin-Delete`, `Sud-Admin-Delete`, `User-Delete` | Admin, Sub-Admin, User | Remoção de um comentário próprio. |
+| `/reviews` | `GET` | `Admin-Read`, `Sub-Admin-Read`, `User-Read` | Admin, Sub-Admin, User | Visualização de comentários de produtos. |
+| `/reviews` | `POST` | `Admin-Write`, `Sub-Admin-Write`, `User-Write` | Admin, Sub-Admin, User | Inserção de um comentário sobre um produto. |
+| `/reviews/{id}` | `PUT` | `Admin-Update`, `Sub-Admin-Update`, `User-Update` | Admin, Sub-Admin, User | Edição de um comentário próprio. |
+| `/reviews/{id}` | `DELETE` | `Admin-Delete`, `Sub-Admin-Delete`, `User-Delete` | Admin, Sub-Admin, User | Remoção de um comentário próprio. |
 
 ---
 

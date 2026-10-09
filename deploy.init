@@ -65,7 +65,8 @@ $adminRealmPath = [uri]::EscapeDataString($AdminRealm)
 $issuer = "$KeycloakUrl/realms/$realmPath"
 
 $savedEnvironment = @{}
-foreach ($name in @('JAVA_HOME', 'JBOSS_HOME', 'NOPAUSE', 'KEYCLOAK_CLIENT_SECRET')) {
+foreach ($name in @('JAVA_HOME', 'JBOSS_HOME', 'NOPAUSE', 'KEYCLOAK_CLIENT_SECRET',
+    'KEYCLOAK_ADMIN_CLIENT_ID', 'KEYCLOAK_ADMIN_CLIENT_SECRET')) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 $credential = $null
@@ -92,6 +93,8 @@ try {
     if (Test-Path Env:\KEYCLOAK_CLIENT_SECRET) {
         Remove-Item Env:\KEYCLOAK_CLIENT_SECRET
     }
+    Remove-Item Env:\KEYCLOAK_ADMIN_CLIENT_ID -ErrorAction SilentlyContinue
+    Remove-Item Env:\KEYCLOAK_ADMIN_CLIENT_SECRET -ErrorAction SilentlyContinue
 
     Write-Host 'Building the WAR (including tests)...'
     & $maven -f $pom clean package "-Dwildfly.deployments.dir=$staging"
@@ -147,6 +150,8 @@ try {
         throw 'Keycloak did not return a client secret. Check the administrator permissions and client configuration.'
     }
     $env:KEYCLOAK_CLIENT_SECRET = $clientSecret.value
+    $env:KEYCLOAK_ADMIN_CLIENT_ID = 'poc-keycloak-realm'
+    $env:KEYCLOAK_ADMIN_CLIENT_SECRET = $clientSecret.value
     $headers.Clear()
     $token = $null
     $clientSecret = $null

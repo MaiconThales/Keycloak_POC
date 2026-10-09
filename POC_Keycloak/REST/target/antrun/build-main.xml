@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="maven-antrun-" default="main">
+  <target name="main">
+    <copy file="C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\target/poc-keycloak-api.war" tofile="C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\target\deploy-staging/poc-keycloak-api.war" failonerror="true" overwrite="true" />
+  </target>
+</project>

@@ -1,6 +1,7 @@
 package poc.rest.exception;
 
 import javax.ejb.EJBAccessException;
+import javax.persistence.EntityNotFoundException;
 import javax.validation.ConstraintViolationException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
@@ -26,12 +27,38 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
             return response(Response.Status.BAD_REQUEST.getStatusCode(),
                     "Request validation failed.");
         }
-        if (exception instanceof EJBAccessException || exception instanceof SecurityException) {
+        if (exception instanceof IllegalArgumentException) {
+            return response(Response.Status.BAD_REQUEST.getStatusCode(), "Invalid request.");
+        }
+        if (exception instanceof EntityNotFoundException) {
+            return response(Response.Status.NOT_FOUND.getStatusCode(), "Resource not found.");
+        }
+        if (isAccessDenied(exception)) {
             return response(Response.Status.FORBIDDEN.getStatusCode(),
                     "Insufficient permissions.");
         }
         return response(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(),
                 "An unexpected error occurred.");
+    }
+
+    /**
+     * EJB authorization failures are normally delivered as EJBAccessException,
+     * but an invocation boundary may wrap them in EJBException.  Inspect only
+     * the cause chain here so that the response remains safe and no container
+     * implementation detail is exposed to the client.
+     */
+    private boolean isAccessDenied(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof EJBAccessException || current instanceof SecurityException) {
+                return true;
+            }
+            if (current == current.getCause()) {
+                break;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private Response response(int statusCode, String message) {

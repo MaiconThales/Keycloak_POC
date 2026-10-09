@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import javax.ejb.EJBAccessException;
+import javax.ejb.EJBException;
 import javax.validation.ConstraintViolationException;
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.core.Response;
@@ -164,8 +165,25 @@ class RestComponentsTest {
                 "Insufficient permissions.");
         assertMapped(mapper.toResponse(new SecurityException("private detail")), 403,
                 "Insufficient permissions.");
+        assertMapped(mapper.toResponse(new EJBException(
+                new EJBAccessException("private container detail"))), 403,
+                "Insufficient permissions.");
         assertMapped(mapper.toResponse(new IllegalStateException("private detail")), 500,
                 "An unexpected error occurred.");
+    }
+
+    @Test
+    void formatsAccessDeniedAsJsonErrorResponseWithoutStackTrace() {
+        Response response = new GlobalExceptionMapper().toResponse(
+                new EJBAccessException("role Admin-Write is required"));
+
+        assertEquals(Response.Status.FORBIDDEN.getStatusCode(), response.getStatus());
+        assertEquals(javax.ws.rs.core.MediaType.APPLICATION_JSON_TYPE, response.getMediaType());
+        ErrorResponse error = (ErrorResponse) response.getEntity();
+        assertEquals(403, error.getStatusCode());
+        assertEquals("Insufficient permissions.", error.getMessage());
+        assertNotNull(error.getTimestamp());
+        assertFalse(error.getMessage().contains("Admin-Write"));
     }
 
     @Test

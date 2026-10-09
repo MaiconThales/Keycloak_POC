@@ -1,0 +1,15 @@
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\ApiApplication.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\ErrorResponse.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\LoginRequest.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\LoginResponse.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\ProductInput.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\ProductResponse.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\ReviewInput.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\ReviewResponse.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\UserInput.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\dto\UserResponse.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\exception\GlobalExceptionMapper.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\resource\AuthResource.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\resource\ProductResource.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\resource\ReviewResource.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\REST\src\main\java\poc\rest\resource\UserResource.java

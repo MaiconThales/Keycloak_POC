@@ -1,0 +1,32 @@
+<section class="row justify-content-center" ng-controller="LoginController as login"
+         aria-labelledby="login-title">
+    <div class="col-12 col-md-8 col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 id="login-title" class="h3">Login</h2>
+                <p class="text-body-secondary mb-4">Entre para cadastrar produtos no sistema.</p>
+                <form name="loginForm" ng-submit="login.submit(loginForm)" novalidate
+                      aria-busy="{{login.loading}}">
+                    <div class="mb-3">
+                        <label class="form-label" for="login-username">Usuário</label>
+                        <input class="form-control" id="login-username" name="username" type="text"
+                               ng-model="login.credentials.username" autocomplete="username"
+                               required maxlength="255" ng-disabled="login.loading">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="login-password">Senha</label>
+                        <input class="form-control" id="login-password" name="password" type="password"
+                               ng-model="login.credentials.password" autocomplete="current-password"
+                               required maxlength="1024" ng-disabled="login.loading">
+                    </div>
+                    <p class="alert alert-danger" ng-if="login.error" role="alert">{{login.error}}</p>
+                    <button class="btn btn-primary w-100" type="submit" ng-disabled="login.loading">
+                        <span class="spinner-border spinner-border-sm me-2" ng-if="login.loading"
+                              aria-hidden="true"></span>
+                        {{login.loading ? 'Entrando...' : 'Entrar'}}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>

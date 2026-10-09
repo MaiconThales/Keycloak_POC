@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: poc.security.KeycloakJwtFilterTest
+-------------------------------------------------------------------------------
+Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.846 s -- in poc.security.KeycloakJwtFilterTest

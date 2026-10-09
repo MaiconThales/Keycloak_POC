@@ -1,0 +1,43 @@
+/* Layout adjustments shared by the fixed topbar and responsive sidebar. */
+#app {
+    padding-top: 4.5rem !important;
+}
+
+.sidebar-navigation {
+    display: block;
+}
+
+@media (max-width: 991.98px) {
+    .sidebar-shell {
+        display: none;
+    }
+
+    .sidebar-shell.sidebar-open {
+        display: block;
+    }
+
+    .sidebar-navigation {
+        display: none;
+    }
+
+    .sidebar-shell.sidebar-open .sidebar-navigation {
+        display: block;
+    }
+}
+
+@media (min-width: 992px) {
+    .sidebar-shell {
+        display: block;
+    }
+}
+
+@media (max-width: 575.98px) {
+    #app {
+        padding-top: 4rem !important;
+    }
+
+    .navbar .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}

@@ -1,0 +1,79 @@
+<section ng-controller="ProductsController as products" aria-labelledby="products-title">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <h2 id="products-title" class="h3 mb-0">Produtos</h2>
+        <button class="btn btn-outline-primary" type="button"
+                ng-click="products.load()" ng-disabled="products.loading || products.saving">
+            Atualizar lista
+        </button>
+    </div>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <p class="text-body-secondary mb-0" ng-if="products.loading" role="status">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                Carregando produtos...
+            </p>
+            <p class="alert alert-danger mb-0" ng-if="products.listError" role="alert">{{products.listError}}</p>
+            <p class="text-body-secondary text-center py-4 mb-0"
+               ng-if="!products.loading && !products.listError && !products.items.length">
+                Nenhum produto cadastrado.
+            </p>
+            <div class="table-responsive" ng-if="products.items.length">
+                <table class="table table-striped table-hover align-middle mb-0"
+                       aria-busy="{{products.loading}}">
+                    <caption class="visually-hidden">Produtos cadastrados</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Nome</th>
+                            <th class="text-end" scope="col">Preço</th>
+                            <th scope="col">SKU</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="product in products.items track by product.id">
+                            <td class="text-break">{{product.name}}</td>
+                            <td class="text-end text-nowrap">{{product.price | number:2}}</td>
+                            <td class="text-break">{{product.sku}}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <p class="alert alert-info" ng-if="!products.isAuthenticated()">
+        <a class="alert-link" href="#!/login">Entre no sistema</a> para cadastrar produtos.
+    </p>
+    <form class="card card-body border-0 shadow-sm" ng-if="products.isAuthenticated()" name="productForm"
+          ng-submit="products.create(productForm)" novalidate aria-busy="{{products.saving}}">
+        <h3 class="h5">Novo produto</h3>
+        <p class="text-body-secondary">O cadastro requer permissão de administrador.</p>
+        <fieldset ng-disabled="products.saving">
+            <legend class="visually-hidden">Dados do produto</legend>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="product-name">Nome</label>
+                    <input class="form-control" id="product-name" name="name" type="text"
+                           ng-model="products.input.name" required maxlength="255">
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label" for="product-price">Preço</label>
+                    <input class="form-control" id="product-price" name="price" type="number"
+                           ng-model="products.input.price" required min="0.01"
+                           max="9999999999.99" step="0.01">
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label" for="product-sku">SKU</label>
+                    <input class="form-control" id="product-sku" name="sku" type="text"
+                           ng-model="products.input.sku" required maxlength="100">
+                </div>
+            </div>
+            <button class="btn btn-primary" type="submit">
+                <span class="spinner-border spinner-border-sm me-2" ng-if="products.saving"
+                      aria-hidden="true"></span>
+                {{products.saving ? 'Salvando...' : 'Cadastrar'}}
+            </button>
+        </fieldset>
+    </form>
+    <p class="alert alert-danger mt-3" ng-if="products.createError" role="alert">{{products.createError}}</p>
+    <p class="alert alert-success mt-3" ng-if="products.success" role="status">{{products.success}}</p>
+</section>
