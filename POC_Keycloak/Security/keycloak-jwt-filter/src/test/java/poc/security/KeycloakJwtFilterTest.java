@@ -131,6 +131,49 @@ class KeycloakJwtFilterTest {
     }
 
     @Test
+    void exposesGranularRolesAndGroupsInBothSecurityContexts() throws Exception {
+        ContainerRequestContext request = request("POST", "/api/v1/products",
+                "Bearer " + tokenWithGroups(signingKey, issuer, currentTime() + 300));
+
+        new KeycloakJwtFilter().filter(request);
+
+        SecurityContext context = SecurityContextAssociation.getSecurityContext();
+        assertTrue(context.getUtil().getRoles().containsRole(
+                new org.jboss.security.identity.plugins.SimpleRole("Admin-Write")));
+        assertTrue(context.getUtil().getRoles().containsRole(
+                new org.jboss.security.identity.plugins.SimpleRole("/Admin")));
+        assertTrue(context.getUtil().getRoles().containsRole(
+                new org.jboss.security.identity.plugins.SimpleRole("Admin/Sub-Admin")));
+        assertTrue(context.getUtil().getRoles().containsRole(
+                new org.jboss.security.identity.plugins.SimpleRole("/Admin/Sub-Admin")));
+        assertTrue(context.getUtil().getRoles().containsRole(
+                new org.jboss.security.identity.plugins.SimpleRole("Admin/Sub-Admin/User")));
+        assertTrue(context.getUtil().getRoles().containsRole(
+                new org.jboss.security.identity.plugins.SimpleRole("/Admin/Sub-Admin/User")));
+        assertTrue(context.getUtil().getRoles().containsRole(
+                new org.jboss.security.identity.plugins.SimpleRole("Admin")));
+        assertEquals("test-user", request.getSecurityContext().getUserPrincipal().getName());
+        assertTrue(request.getSecurityContext().isUserInRole("Admin-Write"));
+        assertTrue(request.getSecurityContext().isUserInRole("Admin"));
+    }
+
+    @Test
+    void acceptsWritePermissionsButDoesNotPromoteOtherGranularPermissions() throws Exception {
+        KeycloakJwtFilter filter = new KeycloakJwtFilter();
+        ContainerRequestContext readOnly = request("POST", "/api/v1/products",
+                "Bearer " + tokenWithRole(signingKey, issuer, "Admin-Read", currentTime() + 300));
+        filter.filter(readOnly);
+        assertAbortedWith(readOnly, 403);
+
+        ContainerRequestContext writer = request("POST", "/api/v1/products",
+                "Bearer " + tokenWithRole(signingKey, issuer, "Admin-Write", currentTime() + 300));
+        filter.filter(writer);
+        verify(writer, never()).abortWith(any(Response.class));
+        assertTrue(writer.getSecurityContext().isUserInRole("Admin-Write"));
+        filter.filter(writer, mock(ContainerResponseContext.class));
+    }
+
+    @Test
     void rejectsAuthenticatedUsersWithoutAdminRole() throws Exception {
         ContainerRequestContext request = request("POST", "products",
                 "Bearer " + token(signingKey, issuer, "realm", "reader", currentTime() + 300, null, "RS256"));
@@ -185,10 +228,16 @@ class KeycloakJwtFilterTest {
         ContainerRequestContext request = mock(ContainerRequestContext.class);
         UriInfo uriInfo = mock(UriInfo.class);
         Map<String, Object> properties = new HashMap<>();
+        javax.ws.rs.core.SecurityContext[] securityContext = new javax.ws.rs.core.SecurityContext[1];
         when(request.getMethod()).thenReturn(method);
         when(request.getUriInfo()).thenReturn(uriInfo);
         when(uriInfo.getPath()).thenReturn(path);
         when(request.getHeaderString(HttpHeaders.AUTHORIZATION)).thenReturn(authorization);
+        when(request.getSecurityContext()).thenAnswer(invocation -> securityContext[0]);
+        doAnswer(invocation -> {
+            securityContext[0] = invocation.getArgument(0);
+            return null;
+        }).when(request).setSecurityContext(any(javax.ws.rs.core.SecurityContext.class));
         when(request.getProperty(anyString())).thenAnswer(invocation ->
                 properties.get(invocation.getArgument(0)));
         doAnswer(invocation -> {
@@ -237,6 +286,32 @@ class KeycloakJwtFilterTest {
         String nbfClaim = notBefore == null ? "" : ",\"nbf\":" + notBefore;
         String claims = "{\"iss\":\"" + tokenIssuer + "\",\"sub\":\"test-user\",\"exp\":" + expiresAt
                 + nbfClaim + "," + roleClaims + "}";
+        String unsigned = encode(header) + "." + encode(claims);
+        Signature signature = Signature.getInstance("SHA256withRSA");
+        signature.initSign(keyPair.getPrivate());
+        signature.update(unsigned.getBytes(StandardCharsets.US_ASCII));
+        return unsigned + "." + Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(signature.sign());
+    }
+
+    private String tokenWithGroups(KeyPair keyPair, String tokenIssuer, long expiresAt) throws Exception {
+        String header = "{\"alg\":\"RS256\",\"kid\":\"test-key\"}";
+        String claims = "{\"iss\":\"" + tokenIssuer + "\",\"sub\":\"test-user\",\"exp\":"
+                + expiresAt + ",\"realm_access\":{\"roles\":[\"admin\",\"Admin-Write\"]}"
+                + ",\"groups\":[\"/Admin/Sub-Admin/User\"]}";
+        String unsigned = encode(header) + "." + encode(claims);
+        Signature signature = Signature.getInstance("SHA256withRSA");
+        signature.initSign(keyPair.getPrivate());
+        signature.update(unsigned.getBytes(StandardCharsets.US_ASCII));
+        return unsigned + "." + Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(signature.sign());
+    }
+
+    private String tokenWithRole(KeyPair keyPair, String tokenIssuer, String role, long expiresAt)
+            throws Exception {
+        String header = "{\"alg\":\"RS256\",\"kid\":\"test-key\"}";
+        String claims = "{\"iss\":\"" + tokenIssuer + "\",\"sub\":\"test-user\",\"exp\":"
+                + expiresAt + ",\"realm_access\":{\"roles\":[\"" + role + "\"]}}";
         String unsigned = encode(header) + "." + encode(claims);
         Signature signature = Signature.getInstance("SHA256withRSA");
         signature.initSign(keyPair.getPrivate());

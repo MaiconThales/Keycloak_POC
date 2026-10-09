@@ -53,7 +53,14 @@ is needed: AngularJS still owns navigation, form submission, and state.
 Login and products use responsive cards, forms, buttons, alerts, loading
 indicators, and a responsive product table. The login, products, and updated
 WildFly deployment were accepted in desktop/mobile and runtime checks;
-`.spec/tasks.md` records the completed tasks.
+`../.spec/0.1.0/tasks.md` records the completed tasks.
+
+The SPA uses AngularJS routing with `/login` as its only public application
+route. `/products` is guarded before its template is rendered; unauthenticated
+navigation is sent to `/login`. The HTTP interceptor continues to attach the
+Bearer token and clears the session on API `401`/`403` responses. This frontend
+route policy is separate from the REST contract: API access is governed by its
+own endpoint security rules.
 
 ## Interactive deployment from the workspace root
 
@@ -92,7 +99,8 @@ the script ends. Wait for the successful deployment message in the WildFly
 console; copying the WAR alone does not guarantee a successful deployment.
 
 The Keycloak port defaults to `-KeycloakPort 8081`, and the application/EJB
-HTTP port defaults to `-EJBPort 8083` (also available as `-HttpPort`).
+HTTP port defaults to `-EJBPort 8080` (also available as `-HttpPort`), matching
+the `jboss.http.port` default in `standalone.xml`.
 Both ports can be overridden when invoking the script. By default, the Keycloak URL is built as
 `http://localhost:<KeycloakPort>`; `-KeycloakUrl` can instead specify a
 different URL. Realm, client ID, and admin realm default to `poc-keycloak`,
@@ -101,6 +109,11 @@ also passed to WildFly. Management defaults to `-ManagementPort 9990`. Set
 `-ManagementPort` to the existing server's management port if it differs.
 Remote Keycloak URLs require HTTPS. If invoked outside the workspace root,
 provide `-ProjectRoot` with its absolute path.
+`WILDFLY_HTTP_PORT` may select the HTTP port when `-HttpPort` is omitted.
+For local Docker credentials, copy `Docker/.env.example` to `Docker/.env` and
+change its values. WildFly datasource credentials must be supplied as
+`APP_DB_USER` and `APP_DB_PASSWORD` in the protected process environment.
+Never commit either file.
 
 ## Unit test environment
 

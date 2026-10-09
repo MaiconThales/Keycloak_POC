@@ -14,6 +14,7 @@ import javax.ejb.TransactionAttributeType;
 import javax.ejb.TransactionManagement;
 import javax.ejb.TransactionManagementType;
 import javax.persistence.EntityManager;
+import javax.persistence.EntityNotFoundException;
 import javax.persistence.PersistenceContext;
 import javax.persistence.PersistenceException;
 import javax.persistence.TypedQuery;
@@ -103,6 +104,58 @@ class ProductServiceBeanTest {
     }
 
     @Test
+    void updatesManagedProductAndDoesNotMergeOrPersistItAgain() {
+        Product product = new Product("Old", new BigDecimal("10.00"), "OLD");
+        product.setId(7L);
+        when(entityManager.find(Product.class, 7L)).thenReturn(product);
+
+        Product updated = bean.updateProduct(7L, "New", new BigDecimal("12.50"), "NEW");
+
+        assertSame(product, updated);
+        assertEquals("New", product.getName());
+        assertEquals(new BigDecimal("12.50"), product.getPrice());
+        assertEquals("NEW", product.getSku());
+        verify(entityManager).find(Product.class, 7L);
+        verifyNoMoreInteractions(entityManager);
+    }
+
+    @Test
+    void rejectsUpdateWhenProductDoesNotExist() {
+        when(entityManager.find(Product.class, 99L)).thenReturn(null);
+
+        assertThrows(EntityNotFoundException.class,
+                () -> bean.updateProduct(99L, "New", new BigDecimal("12.50"), "NEW"));
+        verify(entityManager).find(Product.class, 99L);
+    }
+
+    @Test
+    void deletesExistingProduct() {
+        Product product = new Product("Old", new BigDecimal("10.00"), "OLD");
+        when(entityManager.find(Product.class, 7L)).thenReturn(product);
+
+        bean.deleteProduct(7L);
+
+        verify(entityManager).find(Product.class, 7L);
+        verify(entityManager).remove(product);
+    }
+
+    @Test
+    void rejectsDeleteWhenProductDoesNotExist() {
+        when(entityManager.find(Product.class, 99L)).thenReturn(null);
+
+        assertThrows(EntityNotFoundException.class, () -> bean.deleteProduct(99L));
+        verify(entityManager).find(Product.class, 99L);
+        verify(entityManager, never()).remove(any(Product.class));
+    }
+
+    @Test
+    void validatesUpdateInputBeforeAccessingPersistence() {
+        assertThrows(IllegalArgumentException.class,
+                () -> bean.updateProduct(7L, "", new BigDecimal("12.50"), "NEW"));
+        verifyNoInteractions(entityManager);
+    }
+
+    @Test
     void declaresContainerTransactionPersistenceAndCreationAuthorization() throws Exception {
         assertNotNull(ProductServiceBean.class.getAnnotation(Stateless.class));
         assertEquals(TransactionAttributeType.REQUIRED,
@@ -111,9 +164,14 @@ class ProductServiceBeanTest {
         assertTrue(management == null || management.value() == TransactionManagementType.CONTAINER);
         assertEquals("MinhaAppPU", ProductServiceBean.class.getDeclaredField("entityManager")
                 .getAnnotation(PersistenceContext.class).unitName());
-        assertArrayEquals(new String[]{"admin"}, ProductServiceBean.class
+        assertArrayEquals(new String[]{"admin", "Admin", "Sub-Admin", "Admin-Write", "Sub-Admin-Write"}, ProductServiceBean.class
                 .getMethod("create", String.class, BigDecimal.class, String.class)
                 .getAnnotation(RolesAllowed.class).value());
+        assertArrayEquals(new String[]{"Admin", "Sub-Admin", "Admin-Write", "Sub-Admin-Write", "Admin-Update", "Sub-Admin-Update"}, ProductServiceBean.class
+                .getMethod("updateProduct", Long.class, String.class, BigDecimal.class, String.class)
+                .getAnnotation(RolesAllowed.class).value());
+        assertArrayEquals(new String[]{"Admin", "Admin-Write", "Admin-Delete"}, ProductServiceBean.class
+                .getMethod("deleteProduct", Long.class).getAnnotation(RolesAllowed.class).value());
         assertNotNull(ProductServiceBean.class.getMethod("findAll").getAnnotation(PermitAll.class));
     }
 

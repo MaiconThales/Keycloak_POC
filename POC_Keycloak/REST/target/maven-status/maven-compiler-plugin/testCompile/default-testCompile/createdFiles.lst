@@ -1,0 +1,8 @@
+poc\rest\dto\DtoMappingTest.class
+poc\rest\RestComponentsTest.class
+poc\rest\security\PendingRegistrationTicketServiceTest.class
+poc\rest\resource\ReviewResourceTest.class
+poc\rest\resource\UserResourceTest.class
+poc\rest\resource\UserResourceTest$1.class
+poc\rest\resource\AuthResourceTest.class
+poc\rest\resource\ReviewResourceTest$1.class

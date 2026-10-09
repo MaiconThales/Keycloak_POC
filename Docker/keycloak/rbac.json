@@ -1,0 +1,17 @@
+{
+  "realm": "poc-keycloak",
+  "groups": [
+    {
+      "name": "Admin",
+      "roles": ["Admin-Read", "Admin-Write", "Admin-Update", "Admin-Delete"]
+    },
+    {
+      "name": "Sub-Admin",
+      "roles": ["Sub-Admin-Read", "Sub-Admin-Write", "Sub-Admin-Update", "Sub-Admin-Delete"]
+    },
+    {
+      "name": "User",
+      "roles": ["User-Read", "User-Write", "User-Update", "User-Delete"]
+    }
+  ]
+}

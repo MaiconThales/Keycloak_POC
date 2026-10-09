@@ -3,6 +3,10 @@
 /data/*
 !/data/.gitkeep
 
+# Local Docker/runtime secrets
+Docker/.env
+*.secret
+
 # 1. Ignora todo o conteúdo do WildFly por padrão
 /wildfly-10.0.0.Final/**
 # -------------------------------------------------------------------

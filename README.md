@@ -37,11 +37,11 @@ Os comandos abaixo são para PowerShell, executados na raiz do repositório.
 1. Inicie o PostgreSQL e o Keycloak:
 
    ```powershell
-   docker compose -f .\Docker\docker-compose.yml up -d
-   docker compose -f .\Docker\docker-compose.yml ps
+    docker compose --env-file .\Docker\.env -f .\Docker\docker-compose.yml up -d
+    docker compose --env-file .\Docker\.env -f .\Docker\docker-compose.yml ps
    ```
 
-   As portas publicadas no host são `5432` (PostgreSQL) e `8081` (Keycloak). O Compose usa credenciais de desenvolvimento declaradas no próprio arquivo; não as reutilize fora de um ambiente local isolado.
+   As portas publicadas no host são `5432` (PostgreSQL) e `8081` (Keycloak). Antes do primeiro `up`, copie `Docker\.env.example` para `Docker\.env` e substitua os valores. O Compose exige essas variáveis e o arquivo local é ignorado pelo Git; nunca reutilize essas credenciais fora do ambiente local. Para o datasource no WildFly, exporte os mesmos `POSTGRES_USER`/`POSTGRES_PASSWORD` como `APP_DB_USER`/`APP_DB_PASSWORD` no processo que inicia o servidor.
 
 2. Configure o realm no console do Keycloak em `http://localhost:8081`:
 
@@ -57,7 +57,7 @@ Os comandos abaixo são para PowerShell, executados na raiz do repositório.
    docker exec -i postgres_db psql -U admin -d minha_app_db -f /docker-entrypoint-initdb.d/create_tables.sql
    ```
 
-   O script cria a tabela `products` de forma idempotente. Se o banco ainda não existir, verifique a inicialização do PostgreSQL antes de prosseguir.
+   O script cria as tabelas `products` e `users` de forma idempotente. Se o banco ainda não existir, verifique a inicialização do PostgreSQL antes de prosseguir.
 
 4. Compile, execute os testes, empacote e implante no WildFly. O script valida o JDK 8, constrói o WAR, solicita credenciais administrativas do Keycloak para obter o secret do client e inicia o WildFly em primeiro plano:
 
@@ -66,9 +66,9 @@ Os comandos abaixo são para PowerShell, executados na raiz do repositório.
      -JavaHome 'C:\Program Files\Java\jdk1.8.0_202'
    ```
 
-   Ajuste o caminho do JDK para a instalação local. Se `JAVA_HOME` já apontar para JDK 8, `-JavaHome` pode ser omitido. O processo usa por padrão Keycloak em `http://localhost:8081`, aplicação em `http://localhost:8083` e management em `9990`. Para parar o servidor, encerre o processo em primeiro plano com `Ctrl+C`.
+   Ajuste o caminho do JDK para a instalação local. Se `JAVA_HOME` já apontar para JDK 8, `-JavaHome` pode ser omitido. O processo usa por padrão Keycloak em `http://localhost:8081`, aplicação em `http://localhost:8080` e management em `9990`. Use `-HttpPort` ou `WILDFLY_HTTP_PORT` para outro valor. Forneça `KEYCLOAK_CLIENT_SECRET` no ambiente protegido; sem ele o script solicita uma conta administrativa apenas para obtê-lo em runtime. Para parar o servidor, encerre o processo em primeiro plano com `Ctrl+C`.
 
-5. Acesse a SPA em `http://localhost:8083/`. A API fica em `http://localhost:8083/api/v1`; `GET /products` é público e `POST /products` exige bearer token válido com role `admin`.
+5. Acesse a SPA em `http://localhost:8080/`. A API fica em `http://localhost:8080/api/v1`; `GET /products` é público e `POST /products` exige bearer token válido com role `admin`.
 
 Para executar somente build e testes, sem iniciar o servidor:
 
@@ -107,7 +107,7 @@ Em `standalone\configuration\standalone.xml`:
 - A seção `drivers` registra o driver PostgreSQL no módulo `org.postgresql`, classe `org.postgresql.Driver`.
 - Os security domains presentes (`other`, `jboss-web-policy`, `jboss-ejb-policy`, `jaspitest`) são os domínios padrão do perfil; esta POC não adiciona um security domain Keycloak. A autorização de tokens da API é feita no filtro da aplicação.
 
-O datasource está configurado com usuário e senha de desenvolvimento no XML versionado. Trate o arquivo e o ambiente como locais de POC; antes de qualquer uso compartilhado, substitua essas credenciais por configuração externa e protegida. O secret do client Keycloak não deve ser escrito no XML, no código, no WAR ou em propriedades de linha de comando. O script `deploy.init` o obtém do Keycloak e o fornece ao processo WildFly pela variável de ambiente `KEYCLOAK_CLIENT_SECRET`.
+ O datasource recebe `APP_DB_USER` e `APP_DB_PASSWORD` somente do ambiente do processo WildFly; valores vazios fazem a conexão falhar, em vez de habilitar uma credencial embutida. O secret do client Keycloak não deve ser escrito no XML, no código, no WAR ou em propriedades de linha de comando. O script `deploy.init` aceita `KEYCLOAK_CLIENT_SECRET` já fornecido pelo runtime (ou o obtém interativamente do Keycloak) e só o expõe ao processo WildFly.
 
 O persistence unit `MinhaAppPU`, em `Persistence\src\main\resources\META-INF\persistence.xml`, usa JTA, Hibernate fornecido pelo servidor e o JNDI `java:jboss/datasources/MinhaAppDS`. A aplicação depende de `minha_app_db` e da tabela `products`.
 
@@ -142,4 +142,4 @@ Confirme a criação de `poc-keycloak-api.war.deployed` e a ausência de `poc-ke
 - O WildFly 10 fornece Java EE 7 (`javax.*`), enquanto a integração é implementada via endpoints OIDC/JWKS e validação JWT própria, não via adaptador antigo acoplado ao servidor.
 - O datasource e o driver JDBC precisam ser configurados no WildFly separadamente da conexão PostgreSQL usada pelo Keycloak.
 - A obtenção do token de login requer que o client confidencial tenha Direct access grants habilitado. A API não persiste nem registra a senha do usuário; para ambientes não locais, use HTTPS.
-- A configuração versionada contém credenciais PostgreSQL de desenvolvimento. O secret Keycloak é tratado em runtime e deve continuar fora do repositório e do artefato.
+- Credenciais não são versionadas: Docker exige `Docker/.env` local e WildFly exige `APP_DB_USER`/`APP_DB_PASSWORD` no ambiente. O secret Keycloak é tratado em runtime e deve continuar fora do repositório e do artefato. Credenciais usadas em commits antigos devem ser auditadas e rotacionadas; esta correção não reescreve o histórico.

@@ -12,8 +12,8 @@ services:
       # Aponta para a pasta init-scripts que está junto do docker-compose
       - ./init-scripts:/docker-entrypoint-initdb.d
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: supersecretpassword
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in Docker/.env or the process environment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Docker/.env or the process environment}
     ports:
       - "5432:5432"
     networks:
@@ -25,12 +25,12 @@ services:
     container_name: keycloak_auth
     command: start-dev
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: adminpassword
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?Set KC_BOOTSTRAP_ADMIN_USERNAME in Docker/.env or the process environment}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?Set KC_BOOTSTRAP_ADMIN_PASSWORD in Docker/.env or the process environment}
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
-      KC_DB_USERNAME: admin
-      KC_DB_PASSWORD: supersecretpassword
+      KC_DB_USERNAME: ${POSTGRES_USER:?Set POSTGRES_USER in Docker/.env or the process environment}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Docker/.env or the process environment}
     ports:
       - "8081:8080"
     depends_on:

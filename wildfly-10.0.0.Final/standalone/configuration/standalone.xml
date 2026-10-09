@@ -34,6 +34,8 @@
     <system-properties>
         <property name="keycloak.issuer" value="http://localhost:8081/realms/poc-keycloak"/>
         <property name="keycloak.client-id" value="poc-keycloak-api"/>
+        <property name="keycloak.admin.client-id" value="${env.KEYCLOAK_ADMIN_CLIENT_ID:poc-keycloak-api}"/>
+        <property name="keycloak.admin.client-secret" value="${env.KEYCLOAK_ADMIN_CLIENT_SECRET:}"/>
     </system-properties>
 
 
@@ -144,16 +146,16 @@
                     <connection-url>jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE</connection-url>
                     <driver>h2</driver>
                     <security>
-                        <user-name>sa</user-name>
-                        <password>sa</password>
+                        <user-name>${env.EXAMPLE_DB_USER:}</user-name>
+                        <password>${env.EXAMPLE_DB_PASSWORD:}</password>
                     </security>
                 </datasource>
                 <datasource jndi-name="java:jboss/datasources/MinhaAppDS" pool-name="MinhaAppDS" enabled="true" use-java-context="true">
                     <connection-url>jdbc:postgresql://localhost:5432/minha_app_db</connection-url>
                     <driver>postgresql</driver>
                     <security>
-                        <user-name>admin</user-name>
-                        <password>supersecretpassword</password>
+                        <user-name>${env.APP_DB_USER:}</user-name>
+                        <password>${env.APP_DB_PASSWORD:}</password>
                     </security>
                 </datasource>
                 <drivers>

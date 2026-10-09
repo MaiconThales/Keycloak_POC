@@ -11,7 +11,7 @@ param(
     [string]$AdminRealm = 'master',
     [Alias('EJBPort')]
     [ValidateRange(1, 65535)]
-    [int]$HttpPort = 8083,
+    [int]$HttpPort = 8080,
     [ValidateRange(1, 65535)]
     [int]$ManagementPort = 9990
 )
@@ -21,6 +21,12 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $PSBoundParameters.ContainsKey('KeycloakUrl')) {
     $KeycloakUrl = "http://localhost:$KeycloakPort"
+}
+# standalone.xml uses jboss.http.port and defaults to 8080.  Permit an
+# environment-level choice while keeping an explicit -HttpPort authoritative.
+if (-not $PSBoundParameters.ContainsKey('HttpPort') -and
+    -not [string]::IsNullOrWhiteSpace($env:WILDFLY_HTTP_PORT)) {
+    $HttpPort = [int]$env:WILDFLY_HTTP_PORT
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
@@ -65,7 +71,7 @@ $adminRealmPath = [uri]::EscapeDataString($AdminRealm)
 $issuer = "$KeycloakUrl/realms/$realmPath"
 
 $savedEnvironment = @{}
-foreach ($name in @('JAVA_HOME', 'JBOSS_HOME', 'NOPAUSE', 'KEYCLOAK_CLIENT_SECRET')) {
+foreach ($name in @('JAVA_HOME', 'JBOSS_HOME', 'NOPAUSE', 'KEYCLOAK_CLIENT_SECRET', 'KEYCLOAK_ADMIN_CLIENT_ID', 'KEYCLOAK_ADMIN_CLIENT_SECRET')) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 $credential = $null
@@ -88,9 +94,18 @@ try {
     $env:JAVA_HOME = $JavaHome
     $env:JBOSS_HOME = $wildflyHome
     $env:NOPAUSE = 'true'
-    # Keep even a previously configured runtime secret out of the Maven process.
-    if (Test-Path Env:\KEYCLOAK_CLIENT_SECRET) {
-        Remove-Item Env:\KEYCLOAK_CLIENT_SECRET
+    # Maven must never consume or package a secret. Preserve a secret supplied
+    # by the caller so an existing authenticated runtime can be used.
+    $runtimeClientSecret = [Environment]::GetEnvironmentVariable('KEYCLOAK_CLIENT_SECRET', 'Process')
+    $runtimeAdminClientId = [Environment]::GetEnvironmentVariable('KEYCLOAK_ADMIN_CLIENT_ID', 'Process')
+    $runtimeAdminClientSecret = [Environment]::GetEnvironmentVariable('KEYCLOAK_ADMIN_CLIENT_SECRET', 'Process')
+    Remove-Item Env:\KEYCLOAK_CLIENT_SECRET -ErrorAction SilentlyContinue
+    Remove-Item Env:\KEYCLOAK_ADMIN_CLIENT_SECRET -ErrorAction SilentlyContinue
+    if (-not [string]::IsNullOrWhiteSpace($runtimeClientSecret)) {
+        Write-Host 'Using KEYCLOAK_CLIENT_SECRET supplied by the protected runtime environment.'
+    }
+    if (Test-Path Env:\KEYCLOAK_ADMIN_CLIENT_SECRET) {
+        Remove-Item Env:\KEYCLOAK_ADMIN_CLIENT_SECRET
     }
 
     Write-Host 'Building the WAR (including tests)...'
@@ -102,6 +117,13 @@ try {
         throw "Maven did not produce the expected WAR: $war"
     }
 
+    if (-not [string]::IsNullOrWhiteSpace($runtimeClientSecret)) {
+        $env:KEYCLOAK_CLIENT_SECRET = $runtimeClientSecret
+        if ([string]::IsNullOrWhiteSpace($runtimeAdminClientId)) { $env:KEYCLOAK_ADMIN_CLIENT_ID = $ClientId } else { $env:KEYCLOAK_ADMIN_CLIENT_ID = $runtimeAdminClientId }
+        if ([string]::IsNullOrWhiteSpace($runtimeAdminClientSecret)) { $env:KEYCLOAK_ADMIN_CLIENT_SECRET = $runtimeClientSecret } else { $env:KEYCLOAK_ADMIN_CLIENT_SECRET = $runtimeAdminClientSecret }
+        $runtimeClientSecret = $null
+    }
+    else {
     $credential = Get-Credential -Message 'Keycloak administrator with permission to view the application client secret'
     if ($null -eq $credential) {
         throw 'Keycloak authentication was cancelled.'
@@ -147,9 +169,12 @@ try {
         throw 'Keycloak did not return a client secret. Check the administrator permissions and client configuration.'
     }
     $env:KEYCLOAK_CLIENT_SECRET = $clientSecret.value
+    $env:KEYCLOAK_ADMIN_CLIENT_ID = $ClientId
+    $env:KEYCLOAK_ADMIN_CLIENT_SECRET = $clientSecret.value
     $headers.Clear()
     $token = $null
     $clientSecret = $null
+    }
 
     $serverProcesses = @(Get-ProjectWildFlyProcess)
     $serverIds = @($serverProcesses | Select-Object -ExpandProperty ProcessId)
@@ -207,6 +232,7 @@ try {
     Write-Host "Application: http://localhost:$HttpPort/ | API: http://localhost:$HttpPort/api/v1"
     Write-Host 'Java debugger: localhost:8787 (WildFly debug mode)'
     & $standalone --debug "-Dkeycloak.issuer=$issuer" "-Dkeycloak.client-id=$ClientId" `
+        "-Dkeycloak.admin.client-id=$ClientId" `
         "-Djboss.http.port=$HttpPort" "-Djboss.management.http.port=$ManagementPort"
     if ($LASTEXITCODE -ne 0) {
         throw "WildFly exited with code $LASTEXITCODE. See its console output and standalone\log\server.log."

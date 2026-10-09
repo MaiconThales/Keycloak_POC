@@ -1,6 +1,7 @@
 package poc.rest.exception;
 
 import javax.ejb.EJBAccessException;
+import javax.persistence.EntityNotFoundException;
 import javax.validation.ConstraintViolationException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
@@ -9,11 +10,16 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import poc.rest.dto.ErrorResponse;
+import poc.persistence.keycloak.KeycloakAdminException;
 
 @Provider
 public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
     @Override
     public Response toResponse(Throwable exception) {
+        if (hasCause(exception, KeycloakAdminException.class)) {
+            return response(Response.Status.SERVICE_UNAVAILABLE.getStatusCode(),
+                    "Service is temporarily unavailable.");
+        }
         if (exception instanceof WebApplicationException) {
             Response original = ((WebApplicationException) exception).getResponse();
             Response.StatusType status = original == null ? null : original.getStatusInfo();
@@ -26,12 +32,27 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
             return response(Response.Status.BAD_REQUEST.getStatusCode(),
                     "Request validation failed.");
         }
+        if (exception instanceof EntityNotFoundException) {
+            return response(Response.Status.NOT_FOUND.getStatusCode(),
+                    "Resource not found.");
+        }
+        if (exception instanceof IllegalArgumentException) {
+            return response(Response.Status.BAD_REQUEST.getStatusCode(),
+                    "Invalid request.");
+        }
         if (exception instanceof EJBAccessException || exception instanceof SecurityException) {
             return response(Response.Status.FORBIDDEN.getStatusCode(),
                     "Insufficient permissions.");
         }
         return response(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(),
                 "An unexpected error occurred.");
+    }
+
+    private boolean hasCause(Throwable exception, Class<?> type) {
+        for (Throwable current = exception; current != null; current = current.getCause()) {
+            if (type.isInstance(current)) return true;
+        }
+        return false;
     }
 
     private Response response(int statusCode, String message) {

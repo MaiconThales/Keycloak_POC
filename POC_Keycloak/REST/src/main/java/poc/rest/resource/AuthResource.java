@@ -9,6 +9,9 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.function.Supplier;
 
 import javax.json.Json;
@@ -25,6 +28,11 @@ import javax.ws.rs.core.Response;
 import poc.rest.dto.LoginRequest;
 import poc.rest.dto.LoginResponse;
 import poc.rest.dto.ErrorResponse;
+import poc.rest.dto.PendingRegistrationResponse;
+import poc.persistence.keycloak.KeycloakAdminService;
+import poc.persistence.keycloak.KeycloakUserProfile;
+import javax.ejb.EJB;
+import poc.rest.security.PendingRegistrationTicketService;
 
 @Path("auth")
 @Consumes(MediaType.APPLICATION_JSON)
@@ -35,6 +43,10 @@ public class AuthResource {
     private static final int MAX_RESPONSE_BYTES = 1024 * 1024;
 
     private final Supplier<String> clientSecretProvider;
+    @EJB
+    private KeycloakAdminService adminService;
+    @EJB
+    private PendingRegistrationTicketService ticketService;
 
     public AuthResource() {
         this(() -> System.getenv("KEYCLOAK_CLIENT_SECRET"));
@@ -42,6 +54,12 @@ public class AuthResource {
 
     AuthResource(Supplier<String> clientSecretProvider) {
         this.clientSecretProvider = Objects.requireNonNull(clientSecretProvider);
+    }
+
+    AuthResource(Supplier<String> clientSecretProvider, KeycloakAdminService adminService) {
+        this(clientSecretProvider);
+        this.adminService = adminService;
+        this.ticketService = new PendingRegistrationTicketService();
     }
 
     @POST
@@ -77,6 +95,10 @@ public class AuthResource {
             String tokenType = token.getString("token_type", "Bearer");
             return Response.ok(new LoginResponse(accessToken, expiresIn, tokenType)).build();
         } catch (InvalidCredentialsException e) {
+            if (isRequiredActionError(e.response)) {
+                Response pending = pendingRegistration(request.getUsername(), e.response);
+                if (pending != null) return pending;
+            }
             return error(Response.Status.UNAUTHORIZED, "Invalid username or password.");
         } catch (KeycloakConfigurationException e) {
             return error(Response.Status.BAD_GATEWAY, "Keycloak rejected the client configuration.");
@@ -126,7 +148,7 @@ public class AuthResource {
 
             if (status == HttpURLConnection.HTTP_BAD_REQUEST
                     && "invalid_grant".equals(response.getString("error", ""))) {
-                throw new InvalidCredentialsException();
+                throw new InvalidCredentialsException(response);
             }
             if (status == HttpURLConnection.HTTP_BAD_REQUEST
                     || status == HttpURLConnection.HTTP_UNAUTHORIZED
@@ -180,8 +202,42 @@ public class AuthResource {
                 .build();
     }
 
+    private Response pendingRegistration(String username, JsonObject errorResponse) {
+        if (adminService == null) return null;
+        try {
+            KeycloakUserProfile user = adminService.findUser(username);
+            if (user == null || user.getRequiredActions().isEmpty()) return null;
+            List<String> actions = new ArrayList<String>(user.getRequiredActions());
+            java.util.Map<String, String> missing = new LinkedHashMap<String, String>();
+            if (actions.contains("UPDATE_PROFILE")) {
+                addMissing(missing, "firstName", user.getFirstName());
+                addMissing(missing, "lastName", user.getLastName());
+                addMissing(missing, "email", user.getEmail());
+            }
+            return Response.status(Response.Status.FORBIDDEN).type(MediaType.APPLICATION_JSON_TYPE)
+                    .entity(new PendingRegistrationResponse("User profile requires completion.", actions, missing,
+                            ticketService.issue(username))).build();
+        } catch (RuntimeException ignored) {
+            // Do not turn an Admin API failure into a disclosure or a successful login.
+            return null;
+        }
+    }
+
+    private void addMissing(java.util.Map<String, String> missing, String name, String value) {
+        if (isBlank(value)) missing.put(name, "Obrigatório");
+    }
+
+    private boolean isRequiredActionError(JsonObject response) {
+        if (response == null) return false;
+        String description = response.getString("error_description", "").toLowerCase(java.util.Locale.ENGLISH);
+        return description.contains("required action") || description.contains("required actions")
+                || description.contains("not fully set up") || description.contains("not fully setup");
+    }
+
     private static final class InvalidCredentialsException extends Exception {
         private static final long serialVersionUID = 1L;
+        private final JsonObject response;
+        InvalidCredentialsException(JsonObject response) { this.response = response; }
     }
 
     private static final class KeycloakConfigurationException extends Exception {

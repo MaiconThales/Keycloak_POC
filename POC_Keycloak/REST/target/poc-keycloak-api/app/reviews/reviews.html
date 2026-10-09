@@ -1,0 +1,43 @@
+<section ng-controller="ReviewsController as reviews" aria-labelledby="reviews-title">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <h2 id="reviews-title" class="h3 mb-0">Avaliações</h2>
+        <button type="button" class="btn btn-outline-primary" ng-click="reviews.load()" ng-disabled="reviews.loading">Atualizar lista</button>
+    </div>
+    <form class="card card-body border-0 shadow-sm mb-4" name="reviewFilters" ng-submit="reviews.load()" novalidate>
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-5"><label class="form-label" for="filter-product">Produto</label>
+                <select class="form-select" id="filter-product" ng-model="reviews.filters.productId" ng-options="p.id as p.name for p in reviews.products">
+                    <option value="">Todos os produtos</option>
+                </select></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="filter-rating">Nota</label>
+                <select class="form-select" id="filter-rating" ng-model="reviews.filters.rating"><option value="">Todas</option><option ng-repeat="rating in [1,2,3,4,5]" value="{{rating}}">{{rating}} estrela{{rating > 1 ? 's' : ''}}</option></select></div>
+            <div class="col-12 col-md-auto"><button class="btn btn-secondary" type="submit" ng-disabled="reviews.loading">Filtrar</button></div>
+        </div>
+    </form>
+    <div class="card border-0 shadow-sm mb-4"><div class="card-body">
+        <p class="text-body-secondary mb-0" ng-if="reviews.loading" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Carregando avaliações...</p>
+        <p class="alert alert-danger mb-0" role="alert" ng-if="reviews.error">{{reviews.error}}</p>
+        <p class="text-body-secondary text-center py-4 mb-0" ng-if="!reviews.loading && !reviews.error && !reviews.items.length">Nenhuma avaliação encontrada.</p>
+        <div class="table-responsive" ng-if="reviews.items.length"><table class="table table-striped table-hover align-middle mb-0" aria-busy="{{reviews.loading}}">
+            <caption class="visually-hidden">Avaliações dos produtos</caption><thead><tr><th scope="col">Produto</th><th scope="col">Nota</th><th scope="col">Comentário</th><th scope="col">Autor</th><th scope="col">Data</th><th scope="col"><span class="visually-hidden">Ações</span></th></tr></thead>
+            <tbody><tr ng-repeat="review in reviews.items track by review.id"><td class="text-break">{{review.productName || ('Produto #' + review.productId)}}</td>
+                <td class="text-nowrap"><span aria-hidden="true"><span ng-repeat="filled in reviews.stars(review.rating) track by $index" class="text-warning">{{filled ? '★' : '☆'}}</span></span><span class="visually-hidden">{{review.rating}} de 5 estrelas</span><small class="ms-1">({{review.rating}}/5)</small></td>
+                <td class="text-break">{{review.comment}}</td><td class="text-break">{{review.authorUsername || 'Usuário'}}</td><td class="text-nowrap">{{review.createdAt | date:'dd/MM/yyyy HH:mm'}}</td>
+                <td class="text-end text-nowrap"><button type="button" class="btn btn-sm btn-outline-secondary me-1" ng-if="reviews.canEdit(review)" ng-click="reviews.openEdit(review)" aria-label="Editar avaliação de {{review.productName}}">Editar</button><button type="button" class="btn btn-sm btn-outline-danger" ng-if="reviews.canDelete(review)" ng-click="reviews.openDelete(review)" aria-label="Excluir avaliação de {{review.productName}}">Excluir</button></td>
+            </tr></tbody>
+        </table></div>
+    </div></div>
+    <form class="card card-body border-0 shadow-sm" name="createReviewForm" ng-if="reviews.canCreate()" ng-submit="reviews.create(createReviewForm)" novalidate aria-busy="{{reviews.saving}}">
+        <h3 class="h5">Nova avaliação</h3><fieldset ng-disabled="reviews.saving"><legend class="visually-hidden">Dados da avaliação</legend>
+            <div class="row g-3 mb-3"><div class="col-12 col-md-6"><label class="form-label" for="review-product">Produto</label><select class="form-select" id="review-product" name="productId" ng-model="reviews.input.productId" ng-options="p.id as p.name for p in reviews.products" required><option value="">Selecione um produto</option></select></div>
+            <div class="col-12 col-md-3"><label class="form-label" for="review-rating">Nota</label><input class="form-control" id="review-rating" name="rating" type="number" min="1" max="5" step="1" ng-model="reviews.input.rating" required></div></div>
+            <label class="form-label" for="review-comment">Comentário</label><textarea class="form-control mb-3" id="review-comment" name="comment" rows="4" maxlength="2000" ng-model="reviews.input.comment" required></textarea>
+            <button class="btn btn-primary" type="submit"><span class="spinner-border spinner-border-sm me-2" ng-if="reviews.saving" aria-hidden="true"></span>{{reviews.saving ? 'Salvando...' : 'Publicar avaliação'}}</button>
+        </fieldset>
+    </form>
+    <p class="alert alert-info mt-3" ng-if="!reviews.canCreate()">Seu perfil pode consultar avaliações, mas não possui permissão para publicar.</p>
+    <p class="alert alert-danger mt-3" role="alert" ng-if="reviews.formError">{{reviews.formError}}</p><p class="alert alert-success mt-3" role="status" ng-if="reviews.success">{{reviews.success}}</p>
+
+    <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="edit-review-title" ng-if="reviews.editing"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form name="editReviewForm" ng-submit="reviews.update(editReviewForm)" novalidate aria-busy="{{reviews.editSaving}}"><div class="modal-header"><h2 id="edit-review-title" class="modal-title h5">Editar avaliação</h2><button type="button" class="btn-close" aria-label="Fechar" ng-click="reviews.closeEdit()" ng-disabled="reviews.editSaving"></button></div><div class="modal-body"><p class="alert alert-danger" role="alert" ng-if="reviews.editError">{{reviews.editError}}</p><label class="form-label" for="edit-review-rating">Nota</label><input class="form-control mb-3" id="edit-review-rating" name="rating" type="number" min="1" max="5" ng-model="reviews.editInput.rating" required><label class="form-label" for="edit-review-comment">Comentário</label><textarea class="form-control" id="edit-review-comment" name="comment" rows="4" maxlength="2000" ng-model="reviews.editInput.comment" required></textarea></div><div class="modal-footer"><button type="button" class="btn btn-secondary" ng-click="reviews.closeEdit()">Cancelar</button><button type="submit" class="btn btn-primary" ng-disabled="reviews.editSaving">Salvar</button></div></form></div></div></div>
+    <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="delete-review-title" ng-if="reviews.deleting"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 id="delete-review-title" class="modal-title h5">Excluir avaliação</h2><button type="button" class="btn-close" aria-label="Fechar" ng-click="reviews.closeDelete()" ng-disabled="reviews.deleteSaving"></button></div><div class="modal-body"><p>Deseja remover esta avaliação de <strong>{{reviews.deleting.productName}}</strong>?</p><p class="alert alert-danger mb-0" role="alert" ng-if="reviews.deleteError">{{reviews.deleteError}}</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary" ng-click="reviews.closeDelete()">Cancelar</button><button type="button" class="btn btn-danger" ng-click="reviews.remove()" ng-disabled="reviews.deleteSaving">{{reviews.deleteSaving ? 'Removendo...' : 'Excluir avaliação'}}</button></div></div></div></div>
+</section>

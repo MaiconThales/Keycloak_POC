@@ -1,0 +1,17 @@
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\entity\Product.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\entity\Review.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\entity\UserEntity.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\keycloak\KeycloakAdminClient.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\keycloak\KeycloakAdminConfiguration.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\keycloak\KeycloakAdminException.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\keycloak\KeycloakAdminHttpClient.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\keycloak\KeycloakAdminService.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\keycloak\KeycloakAdminServiceBean.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\keycloak\KeycloakUserProfile.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\service\ProductServiceBean.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\service\ProductServiceLocal.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\service\ReviewServiceBean.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\service\ReviewServiceLocal.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\service\UserPage.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\service\UserServiceBean.java
+C:\Development_Environment\Projects\Keycloak_POC\POC_Keycloak\Persistence\src\main\java\poc\persistence\service\UserServiceLocal.java

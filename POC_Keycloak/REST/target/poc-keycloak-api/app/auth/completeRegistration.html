@@ -1,0 +1,39 @@
+<section class="row justify-content-center" ng-controller="CompleteRegistrationController as registration"
+         aria-labelledby="complete-registration-title">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h2 id="complete-registration-title" class="h3">Complete seu cadastro</h2>
+                <p class="text-body-secondary" ng-if="registration.pending.message">
+                    {{registration.pending.message}}
+                </p>
+                <p class="alert alert-danger" role="alert" ng-if="registration.error">{{registration.error}}</p>
+                <form name="registrationForm" ng-submit="registration.submit(registrationForm)" novalidate
+                      aria-busy="{{registration.loading}}">
+                    <div class="mb-3">
+                        <label class="form-label" for="registration-username">Usuário</label>
+                        <input class="form-control" id="registration-username" type="text"
+                               ng-value="registration.pending.username" readonly aria-readonly="true">
+                    </div>
+                    <div class="mb-3" ng-repeat="field in registration.fields track by field">
+                        <label class="form-label" ng-attr-for="registration-{{field}}">
+                            {{registration.labels[field] || field}}
+                        </label>
+                        <input class="form-control" ng-attr-id="registration-{{field}}"
+                               ng-attr-name="{{field}}" ng-model="registration.values[field]"
+                               ng-attr-type="{{field === 'email' ? 'email' : 'text'}}"
+                               required maxlength="320" ng-disabled="registration.loading"
+                               aria-required="true">
+                    </div>
+                    <p class="text-body-secondary" ng-if="!registration.fields.length">
+                        Não há campos pendentes para preencher.
+                    </p>
+                    <button class="btn btn-primary w-100" type="submit" ng-disabled="registration.loading">
+                        <span class="spinner-border spinner-border-sm me-2" ng-if="registration.loading" aria-hidden="true"></span>
+                        {{registration.loading ? 'Salvando...' : 'Concluir cadastro'}}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>

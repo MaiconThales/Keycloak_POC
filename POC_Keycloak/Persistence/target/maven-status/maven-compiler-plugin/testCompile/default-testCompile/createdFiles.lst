@@ -1,0 +1,9 @@
+poc\persistence\entity\UserEntityTest.class
+poc\persistence\service\ReviewServiceBeanTest.class
+poc\persistence\keycloak\KeycloakAdminServiceBeanTest.class
+poc\persistence\entity\ProductTest.class
+poc\persistence\keycloak\KeycloakAdminConfigurationTest.class
+poc\persistence\service\ProductServiceBeanTest.class
+poc\persistence\service\UserServiceBeanTest.class
+poc\persistence\keycloak\KeycloakAdminHttpClientTest.class
+poc\persistence\entity\ReviewTest.class

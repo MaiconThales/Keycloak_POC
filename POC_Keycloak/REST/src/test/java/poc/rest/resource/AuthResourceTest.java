@@ -14,6 +14,11 @@ import org.junit.jupiter.api.Test;
 import poc.rest.dto.ErrorResponse;
 import poc.rest.dto.LoginRequest;
 import poc.rest.dto.LoginResponse;
+import poc.rest.dto.PendingRegistrationResponse;
+import poc.persistence.keycloak.KeycloakAdminService;
+import poc.persistence.keycloak.KeycloakUserProfile;
+import java.util.Arrays;
+import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -124,6 +129,27 @@ class AuthResourceTest {
         responseStatus = 403;
         responseBody = "{\"error\":\"access_denied\"}";
         assertError(resource.login(request("user", "password")), 502);
+    }
+
+    @Test
+    void mapsRequiredActionInvalidGrantThroughAdminProfileWithoutExposingSecrets() {
+        responseStatus = 400;
+        responseBody = "{\"error\":\"invalid_grant\",\"error_description\":\"Account is not fully set up\"}";
+        KeycloakAdminService admin = Mockito.mock(KeycloakAdminService.class);
+        Mockito.when(admin.findUser("user")).thenReturn(new KeycloakUserProfile("id-1", "", "Ana", "",
+                Arrays.asList("UPDATE_PROFILE")));
+
+        javax.ws.rs.core.Response response = new AuthResource(() -> "test-secret", admin)
+                .login(request("user", "password"));
+
+        assertEquals(403, response.getStatus());
+        PendingRegistrationResponse pending = (PendingRegistrationResponse) response.getEntity();
+        assertEquals("PENDING_REGISTRATION", pending.getStatus());
+        assertEquals(Arrays.asList("UPDATE_PROFILE"), pending.getRequiredActions());
+        assertEquals("Obrigatório", pending.getMissingFields().get("lastName"));
+        assertEquals("Obrigatório", pending.getMissingFields().get("email"));
+        assertFalse(pending.getMessage().contains("secret"));
+        Mockito.verify(admin).findUser("user");
     }
 
     @Test

@@ -8,7 +8,7 @@ Este documento estabelece as etapas sequenciais para o desenvolvimento do projet
 O objetivo desta fase é utilizar o ambiente existente e configurar a conectividade entre o WildFly local e os serviços Docker.
 
 *   **Código da Aplicação:** Manter os módulos `Persistence`, `REST` e `Security` dentro da pasta `POC_Keycloak` na raiz do projeto.
-*   **PostgreSQL e Keycloak:** Utilizar os serviços definidos em `Docker/docker-compose.yml`. O PostgreSQL e o Keycloak já são executados em containers; não instalar nem provisionar novas instâncias. O script `Docker/init-scripts/init.sql` cria os bancos `minha_app_db` (aplicação) e `keycloak_db` (Keycloak).
+* **PostgreSQL e Keycloak:** Utilizar os serviços definidos em `../../Docker/docker-compose.yml`. O PostgreSQL e o Keycloak já são executados em containers; não instalar nem provisionar novas instâncias. O script `Docker/init-scripts/init.sql` cria os bancos `minha_app_db` (aplicação) e `keycloak_db` (Keycloak).
 *   **WildFly 10.0.0.Final:** Utilizar a distribuição já presente na raiz do projeto (`wildfly-10.0.0.Final`), sem reinstalá-la.
     *   Registrar o driver JDBC e configurar no `standalone.xml` um DataSource JTA para `minha_app_db`, acessando o PostgreSQL pelo host e porta publicados pelo Docker (`localhost:5432`).
     *   Configurar a instância Keycloak 26.8.0 existente em `http://localhost:8081` para a aplicação: criar realm dedicado `poc-keycloak`, client confidencial `poc-keycloak-api` com Direct Access Grants habilitado e Standard Flow desabilitado, e role `admin` atribuída aos usuários autorizados.

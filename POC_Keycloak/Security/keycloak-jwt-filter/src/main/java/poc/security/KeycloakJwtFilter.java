@@ -16,7 +16,9 @@ import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Priority;
@@ -66,6 +68,9 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
             return;
         }
 
+        // Never allow an identity left on a reused request thread to authorize this request.
+        SecurityContextAssociation.clearSecurityContext();
+
         String issuer = System.getProperty(ISSUER_PROPERTY);
         if (issuer == null || issuer.trim().isEmpty()) {
             request.abortWith(error(Response.Status.SERVICE_UNAVAILABLE,
@@ -104,6 +109,7 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
         Object previous = request.getProperty(PREVIOUS_SECURITY_CONTEXT);
         if (previous instanceof PreviousSecurityContext) {
             restoreSecurityContext(((PreviousSecurityContext) previous).context);
+            request.setSecurityContext(((PreviousSecurityContext) previous).jaxrsContext);
             request.removeProperty(PREVIOUS_SECURITY_CONTEXT);
         }
     }
@@ -117,19 +123,25 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
         Principal principal = new SimplePrincipal(name);
         Subject subject = new Subject();
         subject.getPrincipals().add(principal);
+        javax.ws.rs.core.SecurityContext previousJaxrs = request.getSecurityContext();
         SecurityContext previous = SecurityContextAssociation.getSecurityContext();
         try {
             SecurityContext context = SecurityContextFactory.createSecurityContext(
                     principal, null, subject, "other");
             context.getUtil().createSubjectInfo(principal, null, subject);
             RoleGroup roles = new SimpleRoleGroup("Roles");
-            roles.addRole(new SimpleRole("admin"));
+            for (String role : extractRoles(claims)) {
+                roles.addRole(new SimpleRole(role));
+            }
             context.getUtil().setRoles(roles);
             request.setProperty(PREVIOUS_SECURITY_CONTEXT,
-                    new PreviousSecurityContext(previous));
+                    new PreviousSecurityContext(previous, previousJaxrs));
             SecurityContextAssociation.setSecurityContext(context);
+            request.setSecurityContext(new TokenSecurityContext(principal, roles,
+                    previousJaxrs == null || previousJaxrs.isSecure()));
         } catch (Exception e) {
             restoreSecurityContext(previous);
+            request.setSecurityContext(previousJaxrs);
             throw new IllegalStateException("Unable to establish the validated Keycloak identity.", e);
         }
     }
@@ -265,36 +277,83 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
     }
 
     private boolean hasAdminRole(JsonObject claims) {
-        JsonObject realmAccess = claims.getJsonObject("realm_access");
-        if (containsRole(realmAccess)) {
-            return true;
-        }
+        /*
+         * This filter protects product creation.  It must not treat every
+         * Admin-* permission as a full administrator: Read, Update and
+         * Delete are permissions for different operations.  The write
+         * policy here mirrors the 0.2 contract, while the old, literal
+         * "admin" role remains supported for existing clients.
+         */
+        Set<String> roles = extractRoles(claims);
+        return roles.contains("admin")
+                || roles.contains("Admin")
+                || roles.contains("/Admin")
+                || roles.contains("Sub-Admin")
+                || roles.contains("/Sub-Admin")
+                || roles.contains("Admin-Write")
+                || roles.contains("Sub-Admin-Write");
+    }
+
+    private Set<String> extractRoles(JsonObject claims) {
+        Set<String> result = new HashSet<>();
+        addRoles(result, claims.getJsonObject("realm_access"));
         JsonObject resources = claims.getJsonObject("resource_access");
         if (resources != null) {
             for (String client : resources.keySet()) {
-                if (containsRole(resources.getJsonObject(client))) {
-                    return true;
+                addRoles(result, resources.getJsonObject(client));
+            }
+        }
+        JsonArray groups = claims.getJsonArray("groups");
+        if (groups != null) {
+            for (JsonValue group : groups) {
+                if (group.getValueType() == JsonValue.ValueType.STRING) {
+                    addGroupPrefixes(result, ((JsonString) group).getString());
                 }
             }
         }
-        return false;
+        return result;
     }
 
-    private boolean containsRole(JsonObject access) {
-        if (access == null) {
-            return false;
+    /**
+     * Adds both spellings used by Keycloak/JBoss for every group prefix.
+     * For example /Admin/Sub-Admin/User becomes Admin, /Admin,
+     * Admin/Sub-Admin, /Admin/Sub-Admin and the complete path.  Building
+     * prefixes from validated segments avoids substring based privilege
+     * escalation (and ignores empty or malformed path components).
+     */
+    private void addGroupPrefixes(Set<String> result, String group) {
+        if (group == null) {
+            return;
         }
-        JsonArray roles = access.getJsonArray("roles");
-        if (roles == null) {
-            return false;
+        String[] rawSegments = group.trim().split("/", -1);
+        StringBuilder prefix = new StringBuilder();
+        for (String rawSegment : rawSegments) {
+            String segment = rawSegment.trim();
+            if (segment.isEmpty()) {
+                continue;
+            }
+            if (prefix.length() > 0) {
+                prefix.append('/');
+            }
+            prefix.append(segment);
+            String normalized = prefix.toString();
+            result.add(normalized);
+            result.add('/' + normalized);
         }
-        for (JsonValue role : roles) {
-            if (role.getValueType() == JsonValue.ValueType.STRING
-                    && "admin".equals(((JsonString) role).getString())) {
-                return true;
+    }
+
+    private void addRoles(Set<String> result, JsonObject access) {
+        if (access == null || access.getJsonArray("roles") == null) {
+            return;
+        }
+        for (JsonValue role : access.getJsonArray("roles")) {
+            if (role.getValueType() == JsonValue.ValueType.STRING) {
+                String value = ((JsonString) role).getString();
+                if (!value.isEmpty()) {
+                    result.add(value);
+                }
             }
         }
-        return false;
     }
 
     private byte[] readLimited(HttpURLConnection connection, int limit) throws IOException {
@@ -345,9 +404,38 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
 
     private static final class PreviousSecurityContext {
         private final SecurityContext context;
+        private final javax.ws.rs.core.SecurityContext jaxrsContext;
 
-        private PreviousSecurityContext(SecurityContext context) {
+        private PreviousSecurityContext(SecurityContext context,
+                javax.ws.rs.core.SecurityContext jaxrsContext) {
             this.context = context;
+            this.jaxrsContext = jaxrsContext;
         }
+    }
+
+    private static final class TokenSecurityContext implements javax.ws.rs.core.SecurityContext {
+        private final Principal principal;
+        private final RoleGroup roles;
+        private final boolean secure;
+
+        private TokenSecurityContext(Principal principal, RoleGroup roles, boolean secure) {
+            this.principal = principal;
+            this.roles = roles;
+            this.secure = secure;
+        }
+
+        @Override
+        public Principal getUserPrincipal() { return principal; }
+
+        @Override
+        public boolean isUserInRole(String role) {
+            return role != null && roles.containsRole(new SimpleRole(role));
+        }
+
+        @Override
+        public boolean isSecure() { return secure; }
+
+        @Override
+        public String getAuthenticationScheme() { return "Bearer"; }
     }
 }

@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import javax.ejb.EJBAccessException;
+import javax.annotation.security.RolesAllowed;
+import javax.persistence.EntityNotFoundException;
 import javax.validation.ConstraintViolationException;
 import javax.ws.rs.NotFoundException;
 import javax.ws.rs.core.Response;
@@ -15,6 +17,7 @@ import javax.ws.rs.core.UriInfo;
 import org.junit.jupiter.api.Test;
 
 import poc.persistence.entity.Product;
+import poc.persistence.service.ProductServiceBean;
 import poc.persistence.service.ProductServiceLocal;
 import poc.rest.dto.ErrorResponse;
 import poc.rest.dto.LoginRequest;
@@ -153,6 +156,70 @@ class RestComponentsTest {
     }
 
     @Test
+    void updatesProductThroughTheEjbFacade() throws Exception {
+        ProductResource resource = new ProductResource();
+        ProductServiceLocal service = mock(ProductServiceLocal.class);
+        injectService(resource, service);
+        Product product = new Product("Updated", new BigDecimal("12.50"), "UPD");
+        product.setId(42L);
+        ProductInput input = new ProductInput();
+        input.setName("Updated"); input.setPrice(new BigDecimal("12.50")); input.setSku("UPD");
+        when(service.updateProduct(42L, "Updated", new BigDecimal("12.50"), "UPD")).thenReturn(product);
+
+        Response response = resource.update(42L, input);
+
+        assertEquals(200, response.getStatus());
+        assertEquals(Long.valueOf(42L), ((ProductResponse) response.getEntity()).getId());
+        verify(service).updateProduct(42L, "Updated", new BigDecimal("12.50"), "UPD");
+    }
+
+    @Test
+    void deletesProductAndReturnsNoContent() throws Exception {
+        ProductResource resource = new ProductResource();
+        ProductServiceLocal service = mock(ProductServiceLocal.class);
+        injectService(resource, service);
+
+        Response response = resource.delete(42L);
+
+        assertEquals(204, response.getStatus());
+        verify(service).deleteProduct(42L);
+    }
+
+    @Test
+    void rejectsNullUpdateBeforeCallingBusinessLayer() throws Exception {
+        ProductResource resource = new ProductResource();
+        ProductServiceLocal service = mock(ProductServiceLocal.class);
+        injectService(resource, service);
+
+        Response response = resource.update(42L, null);
+
+        assertEquals(400, response.getStatus());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void declaresRolesForUpdateAndDeleteOperations() throws Exception {
+        RolesAllowed updateRoles = ProductResource.class.getMethod("update", Long.class, ProductInput.class)
+                .getAnnotation(RolesAllowed.class);
+        RolesAllowed deleteRoles = ProductResource.class.getMethod("delete", Long.class)
+                .getAnnotation(RolesAllowed.class);
+        assertArrayEquals(new String[] {"Admin", "Sub-Admin", "Admin-Write", "Sub-Admin-Write",
+                "Admin-Update", "Sub-Admin-Update"}, updateRoles.value());
+        assertArrayEquals(new String[] {"Admin", "Admin-Write", "Admin-Delete"}, deleteRoles.value());
+    }
+
+    @Test
+    void keepsUpdateRolesAlignedBetweenRestFacadeAndEjb() throws Exception {
+        String[] restRoles = ProductResource.class.getMethod("update", Long.class, ProductInput.class)
+                .getAnnotation(RolesAllowed.class).value();
+        String[] ejbRoles = ProductServiceBean.class
+                .getMethod("updateProduct", Long.class, String.class, BigDecimal.class, String.class)
+                .getAnnotation(RolesAllowed.class).value();
+
+        assertArrayEquals(restRoles, ejbRoles);
+    }
+
+    @Test
     void mapsWebAndValidationErrorsWithoutExposingExceptionDetails() {
         GlobalExceptionMapper mapper = new GlobalExceptionMapper();
 
@@ -160,6 +227,10 @@ class RestComponentsTest {
                 "Resource not found.");
         assertMapped(mapper.toResponse(new ConstraintViolationException("invalid",
                 Collections.emptySet())), 400, "Request validation failed.");
+        assertMapped(mapper.toResponse(new EntityNotFoundException("private detail")), 404,
+                "Resource not found.");
+        assertMapped(mapper.toResponse(new IllegalArgumentException("private detail")), 400,
+                "Invalid request.");
         assertMapped(mapper.toResponse(new EJBAccessException("private detail")), 403,
                 "Insufficient permissions.");
         assertMapped(mapper.toResponse(new SecurityException("private detail")), 403,
