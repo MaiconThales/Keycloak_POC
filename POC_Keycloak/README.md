@@ -53,7 +53,7 @@ is needed: AngularJS still owns navigation, form submission, and state.
 Login and products use responsive cards, forms, buttons, alerts, loading
 indicators, and a responsive product table. The login, products, and updated
 WildFly deployment were accepted in desktop/mobile and runtime checks;
-`.spec/tasks.md` records the completed tasks.
+`../.spec/0.1.0/tasks.md` records the completed tasks.
 
 ## Interactive deployment from the workspace root
 
