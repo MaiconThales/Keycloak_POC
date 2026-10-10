@@ -85,14 +85,14 @@ The application client must be enabled, confidential, and allow Direct access
 grants. Administrator accounts requiring interactive MFA cannot use this
 password-grant flow.
 
-User administration uses the `poc-keycloak-realm` confidential
-service-account client. Enable its client-credentials grant and grant its
-service account the `realm-management` client roles `query-users`, `view-users`,
-and `manage-users` in `poc-keycloak`; do not grant it the application's `admin`
-realm role. The launcher sets `KEYCLOAK_ADMIN_CLIENT_ID` to
-`poc-keycloak-realm` and reuses the retrieved application client secret as
-`KEYCLOAK_ADMIN_CLIENT_SECRET`, providing both secrets to WildFly only at
-runtime and keeping them out of Maven.
+User administration uses the existing confidential `poc-keycloak-api` client.
+Enable its service-account/client-credentials flow and grant its service
+account the `realm-management` client roles `query-users`, `view-users`, and
+`manage-users` in `poc-keycloak`; do not grant it the application's `admin`
+realm role for this purpose. The launcher sets
+`KEYCLOAK_ADMIN_CLIENT_ID` to `poc-keycloak-api` and reuses the retrieved
+client secret as `KEYCLOAK_ADMIN_CLIENT_SECRET`, providing both variables to
+WildFly only at runtime and keeping the secret out of Maven.
 
 After retrieving the secret and stopping the old server, the script removes
 only `poc-keycloak-api.war` and its scanner markers from the deployment

@@ -10,6 +10,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.json.Json;
 import javax.json.JsonArray;
@@ -21,10 +23,17 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
 final class KeycloakAdminApiClient {
+    private static final Logger LOGGER = Logger.getLogger(KeycloakAdminApiClient.class.getName());
     private static final int CONNECT_TIMEOUT_MILLIS = 3000;
     private static final int READ_TIMEOUT_MILLIS = 5000;
     private static final int MAX_RESPONSE_BYTES = 1024 * 1024;
     private static final int PAGE_SIZE = 100;
+    private static final java.lang.String USERNAME = "username";
+    private static final java.lang.String EMAIL = "email";
+    private static final java.lang.String USERS = "/users";
+    private static final java.lang.String USERS1 = "/users/";
+    private static final java.lang.String ADMIN_REALMS = "/admin/realms/";
+    private static final java.lang.String UTF_8 = "UTF-8";
 
     private final String adminApi;
     private final String clientId;
@@ -46,16 +55,17 @@ final class KeycloakAdminApiClient {
         List<UserProfile> users = new ArrayList<UserProfile>();
         int first = 0;
         while (true) {
-            JsonArray page = get("/users?first=" + first + "&max=" + PAGE_SIZE);
+            JsonArray page = get("/?first=" + first + "&max=" + PAGE_SIZE);
             for (JsonValue value : page) {
                 if (!(value instanceof JsonObject)) {
                     throw failure(Response.Status.BAD_GATEWAY);
                 }
                 JsonObject user = (JsonObject) value;
                 users.add(new UserProfile(stringField(user, "id"),
-                        stringField(user, "username"), stringField(user, "email")));
+                        stringField(user, USERNAME), stringField(user, EMAIL)));
             }
             if (page.size() < PAGE_SIZE) {
+                LOGGER.log(Level.INFO, "Loaded {0} users from Keycloak.", users.size());
                 return users;
             }
             first += page.size();
@@ -64,26 +74,29 @@ final class KeycloakAdminApiClient {
 
     UserProfile create(String username, String email) {
         JsonObject user = Json.createObjectBuilder()
-                .add("username", username)
-                .add("email", email)
+                .add(USERNAME, username)
+                .add(EMAIL, email)
                 .add("enabled", true)
                 .build();
-        HttpResponse response = request("POST", "/users", user, 201);
+        HttpResponse response = request("POST", USERS, user, 201);
         String id = identifierFromLocation(response.location);
+        LOGGER.info("Created a Keycloak user.");
         return new UserProfile(id, username, email);
     }
 
     UserProfile update(String id, String username, String email) {
         JsonObject user = Json.createObjectBuilder()
-                .add("username", username)
-                .add("email", email)
+                .add(USERNAME, username)
+                .add(EMAIL, email)
                 .build();
-        request("PUT", "/users/" + encodePathSegment(id), user, 204);
+        request("PUT", USERS1 + encodePathSegment(id), user, 204);
+        LOGGER.info("Updated a Keycloak user.");
         return new UserProfile(id, username, email);
     }
 
     void delete(String id) {
-        request("DELETE", "/users/" + encodePathSegment(id), null, 204);
+        request("DELETE", USERS1 + encodePathSegment(id), null, 204);
+        LOGGER.info("Deleted a Keycloak user.");
     }
 
     private JsonArray get(String path) {
@@ -120,13 +133,19 @@ final class KeycloakAdminApiClient {
                     ? connection.getErrorStream() : connection.getInputStream();
             byte[] responseBody = stream == null ? new byte[0] : readResponse(stream);
             if (status != expectedStatus) {
-                throw failure(statusFor(status));
+                LOGGER.log(Level.WARNING, "Keycloak Admin API {0} {1} returned HTTP {2}.",
+                        new Object[]{method, logPath(path), status});
+                throw new KeycloakDirectoryException(statusFor(status));
             }
+            LOGGER.log(Level.FINE, "Keycloak Admin API {0} {1} succeeded with HTTP {2}.",
+                    new Object[]{method, logPath(path), status});
             return new HttpResponse(responseBody, connection.getHeaderField("Location"));
         } catch (WebApplicationException e) {
             throw e;
         } catch (IOException | java.net.URISyntaxException e) {
-            throw failure(Response.Status.SERVICE_UNAVAILABLE);
+            LOGGER.log(Level.WARNING,
+                    "Keycloak Admin API request failed due to a connection or I/O error.", e);
+            throw new KeycloakDirectoryException(Response.Status.SERVICE_UNAVAILABLE);
         } finally {
             if (connection != null) {
                 connection.disconnect();
@@ -147,19 +166,25 @@ final class KeycloakAdminApiClient {
             connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("Content-Type",
                     "application/x-www-form-urlencoded; charset=UTF-8");
+
             byte[] form = ("grant_type=client_credentials&client_id=" + encodeForm(clientId)
                     + "&client_secret=" + encodeForm(clientSecret)).getBytes(StandardCharsets.UTF_8);
-            connection.setFixedLengthStreamingMode(form.length);
+
             try (OutputStream output = connection.getOutputStream()) {
                 output.write(form);
             }
 
             int status = connection.getResponseCode();
+
             byte[] response = readResponse(status >= 400
                     ? connection.getErrorStream() : connection.getInputStream());
+
             if (status != 200) {
-                throw failure(Response.Status.BAD_GATEWAY);
+                LOGGER.log(Level.WARNING,
+                        "Keycloak service-account token request returned HTTP {0}.", status);
+                throw new KeycloakDirectoryException(Response.Status.BAD_GATEWAY);
             }
+
             try (JsonReader reader = Json.createReader(
                     new java.io.ByteArrayInputStream(response))) {
                 String token = reader.readObject().getString("access_token", "");
@@ -173,7 +198,9 @@ final class KeycloakAdminApiClient {
         } catch (WebApplicationException e) {
             throw e;
         } catch (IOException | java.net.URISyntaxException e) {
-            throw failure(Response.Status.SERVICE_UNAVAILABLE);
+            LOGGER.log(Level.WARNING,
+                    "Keycloak service-account token request failed due to a connection or I/O error.", e);
+            throw new KeycloakDirectoryException(Response.Status.SERVICE_UNAVAILABLE);
         } finally {
             if (connection != null) {
                 connection.disconnect();
@@ -182,9 +209,9 @@ final class KeycloakAdminApiClient {
     }
 
     private String tokenPath() {
-        String realmPath = adminApi.substring(adminApi.indexOf("/admin/realms/"));
-        String realm = realmPath.substring("/admin/realms/".length(),
-                realmPath.lastIndexOf("/users"));
+        String realmPath = adminApi.substring(adminApi.indexOf(ADMIN_REALMS));
+        String realm = realmPath.substring(ADMIN_REALMS.length(),
+                realmPath.lastIndexOf(USERS));
         return "/realms/" + realm + "/protocol/openid-connect/token";
     }
 
@@ -207,9 +234,10 @@ final class KeycloakAdminApiClient {
             String serverBase = uri.getScheme() + "://" + uri.getRawAuthority()
                     + path.substring(0, realmMarker);
             String realm = path.substring(realmMarker + 8);
-            return serverBase + "/admin/realms/" + encodePathSegment(realm) + "/users";
+            return serverBase + ADMIN_REALMS + encodePathSegment(realm) + USERS;
         } catch (java.net.URISyntaxException e) {
-            throw failure(Response.Status.SERVICE_UNAVAILABLE);
+            LOGGER.log(Level.WARNING, "Keycloak issuer configuration is not a valid URI.", e);
+            throw new KeycloakDirectoryException(Response.Status.SERVICE_UNAVAILABLE);
         }
     }
 
@@ -236,6 +264,7 @@ final class KeycloakAdminApiClient {
             while ((count = input.read(buffer)) != -1) {
                 total += count;
                 if (total > MAX_RESPONSE_BYTES) {
+                    LOGGER.warning("Keycloak response exceeded the configured size limit.");
                     throw failure(Response.Status.BAD_GATEWAY);
                 }
                 output.write(buffer, 0, count);
@@ -254,7 +283,7 @@ final class KeycloakAdminApiClient {
             if (slash < 0 || slash == path.length() - 1) {
                 throw failure(Response.Status.BAD_GATEWAY);
             }
-            return java.net.URLDecoder.decode(path.substring(slash + 1), "UTF-8");
+            return java.net.URLDecoder.decode(path.substring(slash + 1), UTF_8);
         } catch (java.net.URISyntaxException e) {
             throw failure(Response.Status.BAD_GATEWAY);
         } catch (java.io.UnsupportedEncodingException e) {
@@ -274,12 +303,12 @@ final class KeycloakAdminApiClient {
     }
 
     private String encodeForm(String value) throws IOException {
-        return URLEncoder.encode(value, "UTF-8");
+        return URLEncoder.encode(value, UTF_8);
     }
 
     private String encodePathSegment(String value) {
         try {
-            return URLEncoder.encode(value, "UTF-8").replace("+", "%20");
+            return URLEncoder.encode(value, UTF_8).replace("+", "%20");
         } catch (java.io.UnsupportedEncodingException e) {
             throw new IllegalStateException("UTF-8 is required by the Java runtime.", e);
         }
@@ -293,7 +322,20 @@ final class KeycloakAdminApiClient {
         return Response.Status.BAD_GATEWAY;
     }
 
+    private String logPath(String path) {
+        int queryIndex = path.indexOf('?');
+        String pathWithoutQuery = queryIndex < 0 ? path : path.substring(0, queryIndex);
+        String userPrefix = USERS1;
+        int userIdIndex = pathWithoutQuery.indexOf(userPrefix);
+        if (userIdIndex >= 0) {
+            return pathWithoutQuery.substring(0, userIdIndex + userPrefix.length()) + "{id}";
+        }
+        return pathWithoutQuery;
+    }
+
     private WebApplicationException failure(Response.Status status) {
+        LOGGER.log(Level.WARNING, "Keycloak user-directory operation failed with HTTP {0}.",
+                status.getStatusCode());
         return new KeycloakDirectoryException(status);
     }
 

@@ -150,7 +150,7 @@ try {
         throw 'Keycloak did not return a client secret. Check the administrator permissions and client configuration.'
     }
     $env:KEYCLOAK_CLIENT_SECRET = $clientSecret.value
-    $env:KEYCLOAK_ADMIN_CLIENT_ID = 'poc-keycloak-realm'
+    $env:KEYCLOAK_ADMIN_CLIENT_ID = 'poc-keycloak-api'
     $env:KEYCLOAK_ADMIN_CLIENT_SECRET = $clientSecret.value
     $headers.Clear()
     $token = $null

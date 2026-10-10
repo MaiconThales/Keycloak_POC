@@ -14,16 +14,14 @@ the secret. Do not pass it as a system property or save it in source,
 configuration, documentation, or the WAR. The secret is available in the
 Keycloak Admin Console under **Clients > poc-keycloak-api > Credentials**.
 
-The user-management EJB uses the Keycloak Admin REST API through a separate
-confidential `poc-keycloak-realm` client. Enable **Service accounts roles**
-and its client-credentials grant, and grant its service account the
+The user-management EJB uses the Keycloak Admin REST API through the existing
+confidential `poc-keycloak-api` client. Enable **Service accounts roles** and
+its client-credentials grant, and grant its service account the
 `realm-management` client roles `query-users`, `view-users`, and `manage-users`
-in the `poc-keycloak` realm. Do not grant the service account the application's
-`admin` realm role. The `deploy.init` launcher sets
-`KEYCLOAK_ADMIN_CLIENT_ID=poc-keycloak-realm` and reuses the retrieved
-`poc-keycloak-api` client secret as `KEYCLOAK_ADMIN_CLIENT_SECRET`; both are
-available to WildFly only at runtime, not in the repository, WAR, or Maven
-process.
+in the `poc-keycloak` realm. The `deploy.init` launcher sets
+`KEYCLOAK_ADMIN_CLIENT_ID=poc-keycloak-api` and reuses the retrieved client
+secret as `KEYCLOAK_ADMIN_CLIENT_SECRET`; both variables are available to
+WildFly only at runtime, not in the repository, WAR, or Maven process.
 
 WildFly 10 requires Java 8 at runtime. Set `JAVA_HOME` to an installed JDK 8
 and provide `KEYCLOAK_CLIENT_SECRET` from a protected local runtime source
