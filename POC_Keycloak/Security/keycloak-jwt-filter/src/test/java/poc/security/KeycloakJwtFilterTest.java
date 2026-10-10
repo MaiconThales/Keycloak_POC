@@ -192,6 +192,42 @@ class KeycloakJwtFilterTest {
         assertProductOperation("DELETE", "Delete", "User-Delete");
     }
 
+    @Test
+    void reviewCrudRequiresTheMatchingPermissionAndAllowsUserRoles() throws Exception {
+        KeycloakJwtFilter filter = new KeycloakJwtFilter();
+        assertReviewPermission(filter, "GET", "/api/v1/reviews?productId=1",
+                "User-Read", true);
+        assertReviewPermission(filter, "GET", "/api/v1/reviews?productId=1",
+                "User-Write", false);
+
+        assertReviewPermission(filter, "POST", "/api/v1/reviews", "User-Write", true);
+        assertReviewPermission(filter, "POST", "/api/v1/reviews", "User-Read", false);
+
+        assertReviewPermission(filter, "PUT", "/api/v1/reviews/10",
+                "User-Update", true);
+        assertReviewPermission(filter, "PUT", "/api/v1/reviews/10",
+                "User-Delete", false);
+
+        assertReviewPermission(filter, "DELETE", "/api/v1/reviews/10",
+                "User-Delete", true);
+        assertReviewPermission(filter, "DELETE", "/api/v1/reviews/10",
+                "User-Update", false);
+    }
+
+    private void assertReviewPermission(KeycloakJwtFilter filter, String method, String path,
+            String role, boolean allowed) throws Exception {
+        ContainerRequestContext reviewRequest = request(method, path,
+                "Bearer " + token(signingKey, issuer, "realm", role,
+                        currentTime() + 300, null, "RS256"));
+        filter.filter(reviewRequest);
+        if (allowed) {
+            verify(reviewRequest, never()).abortWith(any(Response.class));
+            filter.filter(reviewRequest, mock(ContainerResponseContext.class));
+        } else {
+            assertAbortedWith(reviewRequest, 403);
+        }
+    }
+
     private void assertProductOperation(String method, String action, String userRole) throws Exception {
         for (String role : new String[] {"User-" + action, "Admin-Read"}) {
             ContainerRequestContext denied = request(method, "/products",

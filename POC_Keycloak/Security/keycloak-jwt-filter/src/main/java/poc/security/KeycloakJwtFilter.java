@@ -13,9 +13,11 @@ import java.security.Principal;
 import java.security.Signature;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAPublicKeySpec;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -48,6 +50,7 @@ import org.jboss.security.identity.plugins.SimpleRoleGroup;
 @Provider
 @Priority(Priorities.AUTHENTICATION)
 public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerResponseFilter {
+
     private static final long KEY_CACHE_MILLIS = TimeUnit.MINUTES.toMillis(5);
     private static final int CONNECT_TIMEOUT_MILLIS = 3000;
     private static final int READ_TIMEOUT_MILLIS = 3000;
@@ -59,6 +62,9 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
 
     private volatile Map<String, RSAPublicKey> cachedKeys = Collections.emptyMap();
     private volatile long keysExpireAt;
+
+    private static final Set<String> PUBLIC_ENDPOINTS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("auth/login", "auth", "swagger", "health")));
 
     @Override
     public void filter(ContainerRequestContext request) throws IOException {
@@ -109,7 +115,7 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
     }
 
     private void establishContainerIdentity(ContainerRequestContext request, JsonObject claims,
-            Set<String> claimRoles) {
+                                            Set<String> claimRoles) {
         // Review ownership is keyed by the immutable OIDC subject.  The
         // preferred_username claim is mutable and is only a display name.
         String name = claims.getString("sub", "").trim();
@@ -148,20 +154,30 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
     }
 
     private boolean requiresProtectedEndpoint(ContainerRequestContext request) {
+        // Liberar métodos de pre-flight (ex: OPTIONS) e outros verbos não operacionais
         if (!"GET".equalsIgnoreCase(request.getMethod())
                 && !"POST".equalsIgnoreCase(request.getMethod())
                 && !"PUT".equalsIgnoreCase(request.getMethod())
-                && !"DELETE".equalsIgnoreCase(request.getMethod())) {
+                && !"DELETE".equalsIgnoreCase(request.getMethod())
+                && !"PATCH".equalsIgnoreCase(request.getMethod())) {
             return false;
         }
+
         String path = request.getUriInfo().getPath();
         String normalizedPath = path == null ? "" : path.replaceAll("^/+|/+$", "");
+
         int apiPath = normalizedPath.lastIndexOf("api/v1/");
         if (apiPath >= 0) {
             normalizedPath = normalizedPath.substring(apiPath + "api/v1/".length());
         }
-        return "products".equals(normalizedPath) || "users".equals(normalizedPath)
-                || normalizedPath.startsWith("products/") || normalizedPath.startsWith("users/");
+
+        return !isPublicEndpoint(normalizedPath);
+    }
+
+    private boolean isPublicEndpoint(String path) {
+        return PUBLIC_ENDPOINTS.stream()
+                .anyMatch(publicPath -> path.equalsIgnoreCase(publicPath)
+                        || path.toLowerCase().startsWith(publicPath.toLowerCase() + "/"));
     }
 
     private JsonObject validateToken(String token, String issuer)
@@ -288,8 +304,14 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
             action = "Delete";
         }
         Set<String> roles = JwtRoleClaims.read(claims);
-        if (normalizedResource(request).startsWith("users")) {
+        String resource = normalizedResource(request);
+        if (resource.startsWith("users")) {
             return JwtRoleClaims.containsPermission(roles, "Admin-" + action);
+        }
+        if (resource.startsWith("reviews")) {
+            return JwtRoleClaims.containsPermission(roles, "Admin-" + action)
+                    || JwtRoleClaims.containsPermission(roles, "Sub-Admin-" + action)
+                    || JwtRoleClaims.containsPermission(roles, "User-" + action);
         }
         // Product writes are deliberately restricted to administrative roles.
         // In particular, User-Write must never grant product creation.
@@ -313,7 +335,7 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
 
     private byte[] readLimited(HttpURLConnection connection, int limit) throws IOException {
         try (java.io.InputStream input = connection.getInputStream();
-                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[4096];
             int total = 0;
             int count;
