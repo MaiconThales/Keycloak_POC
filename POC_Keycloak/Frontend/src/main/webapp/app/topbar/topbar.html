@@ -1,0 +1,15 @@
+<nav class="navbar fixed-top bg-white border-bottom shadow-sm" ng-if="isAuthenticated()"
+     aria-label="Barra superior">
+    <div class="container justify-content-start gap-2">
+        <button class="btn btn-outline-primary d-lg-none" type="button"
+                ng-click="toggleSidebar()" ng-attr-aria-expanded="{{sidebarOpen}}"
+                aria-controls="main-navigation">
+            <span aria-hidden="true">☰</span>
+            <span class="visually-hidden">Alternar menu</span>
+        </button>
+        <button class="btn btn-outline-danger" type="button" ng-click="logout()"
+                aria-label="Encerrar sessão">
+            Logout
+        </button>
+    </div>
+</nav>

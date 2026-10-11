@@ -2,7 +2,7 @@
 
 This JAX-RS 2.0 `ContainerRequestFilter` protects `POST /products` and permits
 only requests with a valid Keycloak JWT containing the `admin` realm role or a
-client role named `admin`. Other API routes remain public, matching `.spec/spec.md`.
+client role named `admin`. Other API routes remain public, matching `../../../.spec/0.1.0/spec.md`.
 
 The root-level WildFly configuration at
 `../../../wildfly-10.0.0.Final/standalone/configuration/standalone.xml` is configured with the Keycloak

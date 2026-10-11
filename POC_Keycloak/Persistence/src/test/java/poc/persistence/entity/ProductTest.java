@@ -2,6 +2,8 @@ package poc.persistence.entity;
 
 import java.math.BigDecimal;
 
+import javax.persistence.Column;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -29,5 +31,15 @@ class ProductTest {
         assertEquals("Mouse", product.getName());
         assertEquals(new BigDecimal("50.00"), product.getPrice());
         assertEquals("MSE", product.getSku());
+    }
+
+    @Test
+    void mapsSkuToTheDatabaseContract() throws Exception {
+        Column column = Product.class.getDeclaredField("sku").getAnnotation(Column.class);
+
+        assertNotNull(column);
+        assertEquals(100, column.length());
+        assertFalse(column.nullable());
+        assertTrue(column.unique());
     }
 }

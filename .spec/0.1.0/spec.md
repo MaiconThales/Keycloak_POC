@@ -9,12 +9,12 @@
 ## 2. Ambiente de Execução
 *   **Código da Aplicação:** Fontes e recursos ficam em `POC_Keycloak`, organizados nos submódulos `Persistence`, `REST` e `Security`.
 *   **WildFly:** Distribuição 10.0.0.Final já disponível na raiz do projeto (`wildfly-10.0.0.Final`).
-*   **PostgreSQL:** Executado em Docker pelo serviço `postgres` de `Docker/docker-compose.yml`; acessível pelo WildFly no host em `localhost:5432`. O banco da aplicação é `minha_app_db`.
+* **PostgreSQL:** Executado em Docker pelo serviço `postgres` de `../../Docker/docker-compose.yml`; acessível pelo WildFly no host em `localhost:5432`. O banco da aplicação é `minha_app_db`.
 *   **Keycloak:** Executado em Docker pelo serviço `keycloak` do mesmo Compose; acessível pelo host em `http://localhost:8081`. O banco dedicado do Keycloak é `keycloak_db`. Configurar essa instância existente para o projeto, sem instalar outro Keycloak: criar o realm dedicado `poc-keycloak`, o client confidencial `poc-keycloak-api` e a role de realm `admin`.
 *   **Configuração do realm/client:** No client `poc-keycloak-api`, habilitar Direct Access Grants e desabilitar Standard Flow. A role de realm `admin` está atribuída ao usuário `system-admin`, que precisa definir sua senha antes de autenticar. Configurar o WildFly com `keycloak.issuer=http://localhost:8081/realms/poc-keycloak` e `keycloak.client-id=poc-keycloak-api`; fornecer `keycloak.client-secret` somente em runtime e nunca versioná-lo. O endpoint JWKS é `<keycloak.issuer>/protocol/openid-connect/certs`.
 
 ## 2.1 Build Maven e Implantação
-*   **Agregador:** O projeto Maven deve residir em `POC_Keycloak/pom.xml`, agregando os módulos `Persistence`, `Security/keycloak-jwt-filter` e `REST`, nessa ordem de dependência.
+* **Agregador:** O projeto Maven deve residir em `../../POC_Keycloak/pom.xml`, agregando os módulos `Persistence`, `Security/keycloak-jwt-filter` e `REST`, nessa ordem de dependência.
 *   **Artefato:** `REST` deve gerar o WAR `poc-keycloak-api.war`, compatível com Java 8 e WildFly 10. O pacote deve conter as classes e recursos de `Persistence`, o provider `KeycloakJwtFilter` e a SPA existente em `Frontend/src/main/webapp`. As bibliotecas Java EE/JAX-RS do servidor não devem ser empacotadas como dependências privadas.
 *   **Comando:** Executar `mvn clean package` a partir de `POC_Keycloak`. O build deve copiar o WAR concluído para `C:\Development_Environment\Projects\Keycloak_POC\wildfly-10.0.0.Final\standalone\deployments`, mantendo também a saída normal do módulo em `REST/target`.
 *   **Configuração do destino:** Usar a propriedade Maven `wildfly.deployments.dir`, com o diretório acima como padrão e permitindo override (por exemplo, `mvn clean package -Dwildfly.deployments.dir="C:\caminho\alternativo\deployments"`). O diretório configurado precisa existir ou ser criado pelo build; erro de cópia deve falhar a execução.

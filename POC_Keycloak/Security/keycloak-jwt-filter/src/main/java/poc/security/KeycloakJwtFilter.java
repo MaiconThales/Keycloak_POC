@@ -13,10 +13,13 @@ import java.security.Principal;
 import java.security.Signature;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAPublicKeySpec;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Priority;
@@ -24,7 +27,6 @@ import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
-import javax.json.JsonString;
 import javax.json.JsonValue;
 import javax.security.auth.Subject;
 import javax.ws.rs.Priorities;
@@ -48,6 +50,7 @@ import org.jboss.security.identity.plugins.SimpleRoleGroup;
 @Provider
 @Priority(Priorities.AUTHENTICATION)
 public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerResponseFilter {
+
     private static final long KEY_CACHE_MILLIS = TimeUnit.MINUTES.toMillis(5);
     private static final int CONNECT_TIMEOUT_MILLIS = 3000;
     private static final int READ_TIMEOUT_MILLIS = 3000;
@@ -60,9 +63,12 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
     private volatile Map<String, RSAPublicKey> cachedKeys = Collections.emptyMap();
     private volatile long keysExpireAt;
 
+    private static final Set<String> PUBLIC_ENDPOINTS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("auth/login", "auth", "swagger", "health")));
+
     @Override
     public void filter(ContainerRequestContext request) throws IOException {
-        if (!requiresAdmin(request)) {
+        if (!requiresProtectedEndpoint(request)) {
             return;
         }
 
@@ -82,11 +88,11 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
 
         try {
             JsonObject claims = validateToken(authorization.substring(7).trim(), issuer);
-            if (!hasAdminRole(claims)) {
+            if (!hasRequiredRole(claims, request)) {
                 request.abortWith(error(Response.Status.FORBIDDEN, "Insufficient permissions."));
                 return;
             }
-            establishContainerIdentity(request, claims);
+            establishContainerIdentity(request, claims, JwtRoleClaims.read(claims));
         } catch (IOException e) {
             request.abortWith(error(Response.Status.SERVICE_UNAVAILABLE,
                     "Unable to retrieve Keycloak signing keys."));
@@ -108,8 +114,11 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
         }
     }
 
-    private void establishContainerIdentity(ContainerRequestContext request, JsonObject claims) {
-        String name = claims.getString("preferred_username", claims.getString("sub", ""));
+    private void establishContainerIdentity(ContainerRequestContext request, JsonObject claims,
+                                            Set<String> claimRoles) {
+        // Review ownership is keyed by the immutable OIDC subject.  The
+        // preferred_username claim is mutable and is only a display name.
+        String name = claims.getString("sub", "").trim();
         if (name.isEmpty()) {
             throw new IllegalArgumentException("JWT has no subject identity.");
         }
@@ -123,7 +132,9 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
                     principal, null, subject, "other");
             context.getUtil().createSubjectInfo(principal, null, subject);
             RoleGroup roles = new SimpleRoleGroup("Roles");
-            roles.addRole(new SimpleRole("admin"));
+            for (String role : claimRoles) {
+                roles.addRole(new SimpleRole(role));
+            }
             context.getUtil().setRoles(roles);
             request.setProperty(PREVIOUS_SECURITY_CONTEXT,
                     new PreviousSecurityContext(previous));
@@ -142,17 +153,31 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
         }
     }
 
-    private boolean requiresAdmin(ContainerRequestContext request) {
-        if (!"POST".equalsIgnoreCase(request.getMethod())) {
+    private boolean requiresProtectedEndpoint(ContainerRequestContext request) {
+        // Liberar métodos de pre-flight (ex: OPTIONS) e outros verbos não operacionais
+        if (!"GET".equalsIgnoreCase(request.getMethod())
+                && !"POST".equalsIgnoreCase(request.getMethod())
+                && !"PUT".equalsIgnoreCase(request.getMethod())
+                && !"DELETE".equalsIgnoreCase(request.getMethod())
+                && !"PATCH".equalsIgnoreCase(request.getMethod())) {
             return false;
         }
+
         String path = request.getUriInfo().getPath();
         String normalizedPath = path == null ? "" : path.replaceAll("^/+|/+$", "");
+
         int apiPath = normalizedPath.lastIndexOf("api/v1/");
         if (apiPath >= 0) {
             normalizedPath = normalizedPath.substring(apiPath + "api/v1/".length());
         }
-        return "products".equals(normalizedPath);
+
+        return !isPublicEndpoint(normalizedPath);
+    }
+
+    private boolean isPublicEndpoint(String path) {
+        return PUBLIC_ENDPOINTS.stream()
+                .anyMatch(publicPath -> path.equalsIgnoreCase(publicPath)
+                        || path.toLowerCase().startsWith(publicPath.toLowerCase() + "/"));
     }
 
     private JsonObject validateToken(String token, String issuer)
@@ -264,42 +289,53 @@ public class KeycloakJwtFilter implements ContainerRequestFilter, ContainerRespo
         }
     }
 
-    private boolean hasAdminRole(JsonObject claims) {
-        JsonObject realmAccess = claims.getJsonObject("realm_access");
-        if (containsRole(realmAccess)) {
+    private boolean hasRequiredRole(JsonObject claims, ContainerRequestContext request) {
+        if (!requiresProtectedEndpoint(request)) {
             return true;
         }
-        JsonObject resources = claims.getJsonObject("resource_access");
-        if (resources != null) {
-            for (String client : resources.keySet()) {
-                if (containsRole(resources.getJsonObject(client))) {
-                    return true;
-                }
-            }
+        String action;
+        if ("GET".equalsIgnoreCase(request.getMethod())) {
+            action = "Read";
+        } else if ("POST".equalsIgnoreCase(request.getMethod())) {
+            action = "Write";
+        } else if ("PUT".equalsIgnoreCase(request.getMethod())) {
+            action = "Update";
+        } else {
+            action = "Delete";
         }
-        return false;
+        Set<String> roles = JwtRoleClaims.read(claims);
+        String resource = normalizedResource(request);
+        if (resource.startsWith("users")) {
+            return JwtRoleClaims.containsPermission(roles, "Admin-" + action);
+        }
+        if (resource.startsWith("reviews")) {
+            return JwtRoleClaims.containsPermission(roles, "Admin-" + action)
+                    || JwtRoleClaims.containsPermission(roles, "Sub-Admin-" + action)
+                    || JwtRoleClaims.containsPermission(roles, "User-" + action);
+        }
+        // Product writes are deliberately restricted to administrative roles.
+        // In particular, User-Write must never grant product creation.
+        boolean userRead = "Read".equals(action)
+                && JwtRoleClaims.containsPermission(roles, "User-Read");
+        return userRead
+                || JwtRoleClaims.containsPermission(roles, "Admin-" + action)
+                || JwtRoleClaims.containsPermission(roles, "Sub-Admin-" + action);
     }
 
-    private boolean containsRole(JsonObject access) {
-        if (access == null) {
-            return false;
+    private String normalizedResource(ContainerRequestContext request) {
+        String path = request.getUriInfo().getPath();
+        String normalizedPath = path == null ? "" : path.replaceAll("^/+|/+$", "");
+        int apiPath = normalizedPath.lastIndexOf("api/v1/");
+        if (apiPath >= 0) {
+            normalizedPath = normalizedPath.substring(apiPath + "api/v1/".length());
         }
-        JsonArray roles = access.getJsonArray("roles");
-        if (roles == null) {
-            return false;
-        }
-        for (JsonValue role : roles) {
-            if (role.getValueType() == JsonValue.ValueType.STRING
-                    && "admin".equals(((JsonString) role).getString())) {
-                return true;
-            }
-        }
-        return false;
+        int slash = normalizedPath.indexOf('/');
+        return slash < 0 ? normalizedPath : normalizedPath.substring(0, slash);
     }
 
     private byte[] readLimited(HttpURLConnection connection, int limit) throws IOException {
         try (java.io.InputStream input = connection.getInputStream();
-                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[4096];
             int total = 0;
             int count;

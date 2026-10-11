@@ -8,24 +8,20 @@
           rel="stylesheet"
           integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
           crossorigin="anonymous">
+    <link rel="stylesheet" href="app/layout/layout.css">
 </head>
 <body class="bg-body-tertiary">
-    <header class="bg-white border-bottom shadow-sm">
-        <div class="container py-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <h1 class="h4 mb-0">POC Keycloak</h1>
-            <nav class="nav nav-pills gap-2" aria-label="Navegacao principal">
-                <a class="nav-link" href="#!/products"
-                   ng-class="{'active': currentView === 'products'}"
-                   ng-attr-aria-current="{{currentView === 'products' ? 'page' : undefined}}">Produtos</a>
-                <a class="nav-link" href="#!/login"
-                   ng-class="{'active': currentView === 'login'}"
-                   ng-attr-aria-current="{{currentView === 'login' ? 'page' : undefined}}">Login</a>
-            </nav>
+    <poc-topbar></poc-topbar>
+    <main id="app" class="container pt-5 mt-2 pb-4" ng-class="{'login-app': currentView === 'login'}" tabindex="-1">
+        <div class="row g-4">
+            <poc-sidebar></poc-sidebar>
+            <div ng-class="currentView === 'login' ? 'col-12' : 'col-12 col-lg-9'">
+                <div ng-if="currentView === 'login'" ng-include="'app/auth/login.html'"></div>
+                <div ng-if="currentView === 'products'" ng-include="'app/products/products.html'"></div>
+                <div ng-if="currentView === 'users'" ng-include="'app/users/users.html'"></div>
+                <div ng-if="currentView === 'reviews'" ng-include="'app/reviews/reviews.html'"></div>
+            </div>
         </div>
-    </header>
-    <main id="app" class="container py-4 py-md-5" tabindex="-1">
-        <div ng-if="currentView === 'login'" ng-include="'app/auth/login.html'"></div>
-        <div ng-if="currentView === 'products'" ng-include="'app/products/products.html'"></div>
     </main>
 
     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
@@ -36,8 +32,16 @@
     <script src="app/auth/loginController.js"></script>
     <script src="app/products/products.module.js"></script>
     <script src="app/products/productsService.js"></script>
-    <script src="app/products/productsController.js"></script>
+     <script src="app/products/productsController.js"></script>
+     <script src="app/reviews/reviews.module.js"></script>
+     <script src="app/reviews/reviewsService.js"></script>
+     <script src="app/reviews/reviewsController.js"></script>
+    <script src="app/sidebar/sidebar.module.js"></script>
+    <script src="app/sidebar/sidebar.directive.js"></script>
+    <script src="app/topbar/topbar.module.js"></script>
+    <script src="app/topbar/topbar.directive.js"></script>
     <script src="app/app.module.js"></script>
+    <script src="app/app.routes.js"></script>
     <script src="app/app.navigation.js"></script>
 </body>
 </html>

@@ -23,3 +23,13 @@
 !/wildfly-10.0.0.Final/standalone/
 !/wildfly-10.0.0.Final/standalone/configuration/
 !/wildfly-10.0.0.Final/standalone/configuration/standalone.xml
+# Ignorar todas as pastas target em qualquer subpasta ou módulo
+target/
+**/target/
+
+# Ignorar ficheiros compilados e empacotados
+*.class
+*.jar
+*.war
+*.ear
+*.exec

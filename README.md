@@ -57,7 +57,7 @@ Os comandos abaixo são para PowerShell, executados na raiz do repositório.
    docker exec -i postgres_db psql -U admin -d minha_app_db -f /docker-entrypoint-initdb.d/create_tables.sql
    ```
 
-   O script cria a tabela `products` de forma idempotente. Se o banco ainda não existir, verifique a inicialização do PostgreSQL antes de prosseguir.
+   O script aplica a migração destrutiva da versão 0.2.0: remove as estruturas legadas e recria `products` e `reviews` (não existe tabela local de usuários). Faça backup antes de executá-lo. Se o banco ainda não existir, verifique a inicialização do PostgreSQL antes de prosseguir.
 
 4. Compile, execute os testes, empacote e implante no WildFly. O script valida o JDK 8, constrói o WAR, solicita credenciais administrativas do Keycloak para obter o secret do client e inicia o WildFly em primeiro plano:
 
@@ -68,7 +68,7 @@ Os comandos abaixo são para PowerShell, executados na raiz do repositório.
 
    Ajuste o caminho do JDK para a instalação local. Se `JAVA_HOME` já apontar para JDK 8, `-JavaHome` pode ser omitido. O processo usa por padrão Keycloak em `http://localhost:8081`, aplicação em `http://localhost:8083` e management em `9990`. Para parar o servidor, encerre o processo em primeiro plano com `Ctrl+C`.
 
-5. Acesse a SPA em `http://localhost:8083/`. A API fica em `http://localhost:8083/api/v1`; `GET /products` é público e `POST /products` exige bearer token válido com role `admin`.
+5. Acesse a SPA em `http://localhost:8083/`. A API fica em `http://localhost:8083/api/v1`; `GET /products` exige bearer token com role granular de leitura (`Admin-Read`, `Sub-Admin-Read` ou `User-Read`) e as operações de escrita usam as permissões administrativas correspondentes.
 
 Para executar somente build e testes, sem iniciar o servidor:
 

@@ -11,6 +11,8 @@ import javax.persistence.Table;
 
 @Entity
 @Table(name = "products")
+// The Review -> Product association is intentionally unidirectional.  Do not
+// add a reviews collection here: identity and comments are owned by Review.
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,7 +24,7 @@ public class Product {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 100)
     private String sku;
 
     public Product() {

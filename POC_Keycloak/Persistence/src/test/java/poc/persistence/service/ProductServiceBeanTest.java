@@ -6,7 +6,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import javax.annotation.security.PermitAll;
 import javax.annotation.security.RolesAllowed;
 import javax.ejb.Stateless;
 import javax.ejb.TransactionAttribute;
@@ -103,7 +102,7 @@ class ProductServiceBeanTest {
     }
 
     @Test
-    void declaresContainerTransactionPersistenceAndCreationAuthorization() throws Exception {
+    void declaresContainerTransactionPersistenceAndActionAuthorization() throws Exception {
         assertNotNull(ProductServiceBean.class.getAnnotation(Stateless.class));
         assertEquals(TransactionAttributeType.REQUIRED,
                 ProductServiceBean.class.getAnnotation(TransactionAttribute.class).value());
@@ -111,10 +110,11 @@ class ProductServiceBeanTest {
         assertTrue(management == null || management.value() == TransactionManagementType.CONTAINER);
         assertEquals("MinhaAppPU", ProductServiceBean.class.getDeclaredField("entityManager")
                 .getAnnotation(PersistenceContext.class).unitName());
-        assertArrayEquals(new String[]{"admin"}, ProductServiceBean.class
+        assertArrayEquals(new String[]{"Admin", "Sub-Admin", "Admin-Write", "Sub-Admin-Write"}, ProductServiceBean.class
                 .getMethod("create", String.class, BigDecimal.class, String.class)
                 .getAnnotation(RolesAllowed.class).value());
-        assertNotNull(ProductServiceBean.class.getMethod("findAll").getAnnotation(PermitAll.class));
+        assertArrayEquals(new String[]{"Admin", "Sub-Admin", "User", "Admin-Read", "Sub-Admin-Read", "User-Read"},
+                ProductServiceBean.class.getMethod("findAll").getAnnotation(RolesAllowed.class).value());
     }
 
     @SuppressWarnings("unchecked")

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "orchestrator": {
+      "mode": "primary",
+      "description": "Gerencia o fluxo SDD lendo tasks.md e coordenando subagentes",
+      "prompt": "{file:.opencode/agents/orchestrator.md}"
+    },
+    "coder": {
+      "mode": "subagent",
+      "description": "Desenvolvedor Java EE, EJBs e REST",
+      "prompt": "{file:.opencode/agents/coder.md}"
+    },
+    "tester": {
+      "mode": "subagent",
+      "description": "Executa testes e valida cobertura JaCoCo",
+      "prompt": "{file:.opencode/agents/tester.md}"
+    },
+    "validator": {
+      "mode": "subagent",
+      "description": "Audita conformidade com spec.md e constitution.md",
+      "prompt": "{file:.opencode/agents/validator.md}"
+    }
+  }
+}
