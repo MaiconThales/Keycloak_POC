@@ -30,8 +30,12 @@
                 return;
             }
 
+            if (path === '/reviews' && authService.isAuthenticated()) {
+                return;
+            }
+
             /*
-             * There are only two client-side routes.  In particular, do not
+             * There are only protected client-side routes.  In particular, do not
              * send an authenticated user from an unknown URL to /products:
              * that would make arbitrary URLs behave as an implicit protected
              * route.  Unknown URLs must have the same deterministic fallback

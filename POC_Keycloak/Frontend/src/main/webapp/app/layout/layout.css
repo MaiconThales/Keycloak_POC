@@ -3,6 +3,21 @@
     padding-top: 4.5rem !important;
 }
 
+.login-page {
+    min-height: 100vh;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.login-app {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+
+.login-page > div {
+    width: 100%;
+}
+
 .sidebar-navigation {
     display: block;
 }
@@ -34,6 +49,10 @@
 @media (max-width: 575.98px) {
     #app {
         padding-top: 4rem !important;
+    }
+
+    .login-page {
+        min-height: 100vh;
     }
 
     .navbar .container {

@@ -12,13 +12,14 @@
 </head>
 <body class="bg-body-tertiary">
     <poc-topbar></poc-topbar>
-    <main id="app" class="container pt-5 mt-2 pb-4" tabindex="-1">
+    <main id="app" class="container pt-5 mt-2 pb-4" ng-class="{'login-app': currentView === 'login'}" tabindex="-1">
         <div class="row g-4">
             <poc-sidebar></poc-sidebar>
-            <div class="col-12 col-lg-9">
+            <div ng-class="currentView === 'login' ? 'col-12' : 'col-12 col-lg-9'">
                 <div ng-if="currentView === 'login'" ng-include="'app/auth/login.html'"></div>
                 <div ng-if="currentView === 'products'" ng-include="'app/products/products.html'"></div>
                 <div ng-if="currentView === 'users'" ng-include="'app/users/users.html'"></div>
+                <div ng-if="currentView === 'reviews'" ng-include="'app/reviews/reviews.html'"></div>
             </div>
         </div>
     </main>
@@ -31,7 +32,10 @@
     <script src="app/auth/loginController.js"></script>
     <script src="app/products/products.module.js"></script>
     <script src="app/products/productsService.js"></script>
-    <script src="app/products/productsController.js"></script>
+     <script src="app/products/productsController.js"></script>
+     <script src="app/reviews/reviews.module.js"></script>
+     <script src="app/reviews/reviewsService.js"></script>
+     <script src="app/reviews/reviewsController.js"></script>
     <script src="app/sidebar/sidebar.module.js"></script>
     <script src="app/sidebar/sidebar.directive.js"></script>
     <script src="app/topbar/topbar.module.js"></script>

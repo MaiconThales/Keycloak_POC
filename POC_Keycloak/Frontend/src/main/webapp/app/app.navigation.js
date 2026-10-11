@@ -16,6 +16,8 @@
             } else if (path === '/users' && authService.isAuthenticated()
                     && authService.canReadUsers()) {
                 $rootScope.currentView = 'users';
+            } else if (path === '/reviews' && authService.isAuthenticated()) {
+                $rootScope.currentView = 'reviews';
             } else {
                 $rootScope.currentView = 'login';
             }

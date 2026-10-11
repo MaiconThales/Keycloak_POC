@@ -20,6 +20,13 @@
                         Usuários
                     </a>
                 </li>
+                <li class="nav-item" ng-if="isAuthenticated()">
+                    <a class="nav-link" href="#!/reviews"
+                       ng-class="{'active': currentView === 'reviews'}"
+                       ng-attr-aria-current="{{currentView === 'reviews' ? 'page' : undefined}}">
+                        Reviews
+                    </a>
+                </li>
             </ul>
         </div>
     </nav>
