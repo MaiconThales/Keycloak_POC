@@ -1,0 +1,56 @@
+<section ng-controller="ReviewsController as reviews" aria-labelledby="reviews-title">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <h2 id="reviews-title" class="h3 mb-0">Reviews</h2>
+        <button class="btn btn-outline-primary" type="button" ng-click="reviews.load()"
+                ng-disabled="reviews.loading">Atualizar lista</button>
+    </div>
+    <p class="alert alert-danger" ng-if="reviews.listError || reviews.formError" role="alert">
+        {{reviews.listError || reviews.formError}}
+    </p>
+    <p class="alert alert-success" ng-if="reviews.success" role="status">{{reviews.success}}</p>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <p class="text-body-secondary mb-3" ng-if="reviews.loading" role="status">Carregando reviews...</p>
+            <p class="text-body-secondary text-center py-4 mb-0"
+               ng-if="!reviews.loading && !reviews.items.length">Nenhuma review cadastrada.</p>
+            <div class="table-responsive" ng-if="reviews.items.length">
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <caption class="visually-hidden">Reviews cadastradas</caption>
+                    <thead><tr><th>Produto</th><th>Comentário</th><th>Ações</th></tr></thead>
+                    <tbody>
+                        <tr ng-repeat="review in reviews.items track by review.id">
+                            <td class="text-nowrap">{{reviews.productName(review.product_id || review.productId)}}</td>
+                            <td class="text-break" ng-if="!review.editing">{{review.comment}}</td>
+                            <td ng-if="review.editing"><textarea class="form-control" rows="2"
+                                ng-model="review.editComment" maxlength="10000"></textarea></td>
+                            <td class="text-nowrap">
+                                <button class="btn btn-sm btn-outline-primary me-1" type="button"
+                                    ng-if="reviews.isOwner(review) && !review.editing" ng-click="reviews.beginEdit(review)">Editar</button>
+                                <button class="btn btn-sm btn-primary me-1" type="button"
+                                    ng-if="reviews.isOwner(review) && review.editing" ng-click="reviews.update(review)"
+                                    ng-disabled="review.busy">Salvar</button>
+                                <button class="btn btn-sm btn-outline-secondary me-1" type="button"
+                                    ng-if="reviews.isOwner(review) && review.editing" ng-click="reviews.cancelEdit(review)">Cancelar</button>
+                                <button class="btn btn-sm btn-outline-danger" type="button"
+                                    ng-if="reviews.isOwner(review) && !review.editing" ng-click="reviews.remove(review)"
+                                    ng-disabled="review.busy">Excluir</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <form class="card card-body border-0 shadow-sm" name="reviewForm" ng-submit="reviews.create(reviewForm)" novalidate>
+        <h3 class="h5">Nova review</h3>
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-md-4"><label class="form-label" for="review-product">Produto</label>
+                <select class="form-select" id="review-product" name="product" ng-model="reviews.input.productId" required>
+                    <option value="">Selecione...</option><option ng-repeat="product in reviews.products" ng-value="product.id">{{product.name}}</option>
+                </select></div>
+            <div class="col-12 col-md-8"><label class="form-label" for="review-comment">Comentário</label>
+                <textarea class="form-control" id="review-comment" name="comment" rows="3" ng-model="reviews.input.comment" required maxlength="10000"></textarea></div>
+        </div>
+        <button class="btn btn-primary align-self-start" type="submit" ng-disabled="reviews.saving">Cadastrar</button>
+    </form>
+</section>
